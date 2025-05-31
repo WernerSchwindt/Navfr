@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+	<head>
+		<meta charset="UTF-8">
+		<title>NaVFR</title>
+		<link rel="stylesheet" href="libs/ol-8.2.0.css" type="text/css" />
+		<link rel="stylesheet" href="style.css" type="text/css" />
+		<link rel="stylesheet" href="libs/font-awesome-4.7.0/css/font-awesome.min.css">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	</head>
+	<body>
+		<!-- Body -->
+		<div id="layout_container">
+			<div id="map_container">
+			<!-- MAP_CONTAINER_ANCHOR -->
+				<div id="map_canvas">
+				</div>
+			</div> <!-- map_container-->
+			<div class="info_container" id="clock_block">
+				<div><span class="big_font" id="clock">00:00:00</span><span class="small_font"> Z</span></div>
+			</div>
+			<div class="info_container" id="alt_block">
+				<div><span class="small_font">PLAN ALT:</span></div>
+				<div><span class="big_font" id="alt">0000</span><span class="small_font"> ft</span></div>
+			</div>
+			<div class="info_container" id="ete_block">
+				<div><span class="small_font" id="wp_ete">WP</span><span class="small_font"> ETE:</span></div>
+				<div><span class="big_font" id="ete">00:00</span></div>
+			</div>
+			<!--Top UI-->
+			<div class="info_container" id="top_ui">
+				<table>
+					<tr>
+						<td style='min-width:25%;'>
+							<div><span class="small_font">GS:</span></div>
+							<div><span class="big_font" id="gs">0</span><span class="small_font"> kts</span></div>
+						</td>
+						<td>
+							<div><span class="small_font">TRK:</span></div>
+							<div><span class="big_font" id="trk">000</span><span class="small_font"> °M</span></div>
+						</td>
+						<td>
+							<div><span class="small_font">DTK:</span></div>
+							<div><span class="big_font" id="desired_trk">000</span><span class="small_font"> °M</span></div>
+						</td>
+						<td style='min-width:25%;'>
+							<div><span class="small_font" id="wp_dis">WP</span><span class="small_font"> DIST:</span></div>
+							<div><span class="big_font" id="dis">0.0</span><span class="small_font"> nm</span></div>
+						</td>
+					</tr>
+				</table>
+			</div>
+			
+			<div class="info_container" id="buttom_ui">
+				<div id="dest_block">
+					<table>
+						<tr>
+							<td style='width:50%;'>
+								<div><span class="small_font">DEST ETA: </span><span class="big_font" id="eta">00:00</span></div>
+							</td>
+							<td style='width:50%;'>
+								<div><span class="small_font">DEST DIST: </span><span class="big_font" id="total_dis">0.0</span><span class="small_font"> nm</span></div>
+							</td>
+						</tr>
+						<tr>
+							<td colspan = 2>
+								<div><span class="small_font">LDG FUEL: </span><span class="big_font" id="landing_fuel">0.0</span><span class="small_font"> Lts</span></div>
+							</td>
+						</tr>
+					</table>
+				</div>
+				<div id="button_container">
+					<button class="ui_button" id="open_flight_plan"><i class="fa fa-plane" aria-hidden="true"></i></button>
+					<button class="ui_button" id="open_fuel_plan"><i class="fa fa-tint" aria-hidden="true"></i></button>
+					<button class="ui_button" id="direct_to"><i class="fa fa-long-arrow-right" aria-hidden="true"></i></button>
+					<button class="ui_button" id="open_traffic"><i class="fa fa-wifi" aria-hidden="true"></i></button>
+					<button class="ui_button" id="open_menu"><i class="fa fa-bars" aria-hidden="true"></i></button>
+				</div>
+			</div>
+			
+			<div id="menu" class="side_menu">
+				<div id="close_ui"><button class="ui_button" id="close_menu"><i class="fa fa-close" aria-hidden="true"></i></button></div>
+				<div class="big_font" id="menu_title"></div>
+				<div id="menu_items">
+					<div><button class="menu_button" id="toggle_fullscreen">Enter Fullscreen</i></button></div>
+					<div><button class="menu_button" id="toggle_snap">Waypoint Snap: On</i></button></div>
+					<div><button class="menu_button" id="remove_last_waypoint">Remove Last Waypoint</i></button></div><br>
+					<div><button class="menu_button" id="load_flight_plan">Load Flight Plan</i></button></div>
+					<div><button class="menu_button" id="save_flight_plan">Save Flight Plan</i></button></div>
+					<div><button class="menu_button" id="clear_flight_plan">Clear Flight Plan</i></button></div><br>
+					<div><button class="menu_button" id="open_log">Debug Log</i></button></div>
+				</div>
+				<div id="flight_items">
+					<div><span class="mid_font">Departure: </span><span class="mid_font" id="departure">N/A</span></div>
+					<div><span class="mid_font">Departure Time: </span><input class="mid_font" id=""><span>:</span><input class="mid_font" id=""></div>
+					<div><span class="mid_font">Arrival: </span><span class="mid_font" id="destination">N/A</span></div>
+					<div><span class="mid_font">Arrival Time: </span><span class="mid_font" id="fp_eta">00:00</span></div>
+					<div id="flight_table_scroll">	
+						<table id='flight_table'>
+							<thead class="table_header">
+								<tr>
+									<td class="mid_font">WP NAME</td>
+									<td class="mid_font">ALT (ft)</td>
+									<td class="mid_font">IAS (kts)</td>
+									<td class="mid_font">CRS (°M)</td>
+									<td class="mid_font">WIND DIR (°M)</td>
+									<td class="mid_font">WIND SPD (kts)</td>
+									<td class="mid_font">HDG (°M)</td>
+									<td class="mid_font">GS (kts)</td>
+									<td class="mid_font">DIS (nm)</td>
+									<td class="mid_font">SUM (nm)</td>
+									<td class="mid_font">ETE</td>
+									<td class="mid_font">ETA</td>
+								</tr>
+							</thead>
+							<tbody>
+							</tbody>
+						</table>
+					</div>
+					<div><button class="menu_button" id="calc_flight_plan">Update Flight Plan</i></button></div>
+				</div>
+				<div id="fuel_items">
+					<div id="fuel_table_scroll">	
+						<table id='fuel_table'>
+							<thead class="table_header">
+								<tr>
+									<td class="mid_font">WP NAME</td>
+									<td class="mid_font">ALT (ft)</td>
+									<td class="mid_font">FUEL FLOW (gph)</td>
+									<td class="mid_font">FUEL REQUIRED (gal)</td>
+									<td class="mid_font">ETE</td>
+									<td class="mid_font">FUEL REMAINING (gal)</td>
+								</tr>
+							</thead>
+							<tbody>
+							</tbody>
+						</table>
+					</div>
+				</div>
+				<div id="traffic_items">
+					<table id='planes_table'>
+					</table>
+				</div>
+				<div id="log_items">
+				</div>
+			</div>
+		</div>
+		
+		<script src="libs/jquery-3.7.1.min.js"></script>
+		<script src="libs/ol-custom-10.4.0.js"></script>
+		<script src="libs/geomag2020.js"></script>
+		<script src="defaults.js"></script>
+		<script src="layers.js"></script>
+		<script src="segmentObject.js"></script>
+		<script src="script.js"></script>
+	</body>
+</html>
