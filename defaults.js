@@ -21,3 +21,5 @@ const pointRadius = 6;
 const blueColour = '#0066cc';
 const greenColour = '#00cc22';
 const amberColour = '#cc9900';
+const redColour = '#cc0000';
+const darkGreenColour = '#00400b';

@@ -111,10 +111,7 @@ SectorObject.prototype.calculateWindCorrection = function()
 	if(this.groundSpeed > 30)
 	{
 		const hours = this.distance / this.groundSpeed;
-		
-		this.ete = [];
-		this.ete.push(Math.floor(hours));
-		this.ete.push((hours - Math.floor(hours)) * 60);
+		this.ete = [Math.floor(hours), (hours - Math.floor(hours)) * 60];
 	}
 }
 

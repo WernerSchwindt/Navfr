@@ -15,7 +15,6 @@ html, body{
 	font-family: Helvetica, Arial, sans-serif;
 	font-weight: bold;
 	background-color:rgba(0, 0, 0, 0.6);
-	position: fixed;
 	text-shadow: 0px 0px 3px black;
 	line-height: 1.1em;
 }
@@ -23,7 +22,7 @@ html, body{
 #button_container{
 	display: flex;
     justify-content: space-between;
-	margin: 0 1.5em 0 1.5em;
+	padding: 0 1.5em 0 1.5em;
 }
 
 .ui_button{
@@ -33,6 +32,39 @@ html, body{
 	color: white;
 	border: 0;
 	font-size: 2.5em;
+}
+
+#buttons_top{
+	position: relative;
+	margin-top: 2em;
+}
+
+.ui_button_transparent{
+	cursor: pointer;
+	width: 1.4em;
+	height: 1.4em;
+	color: white;
+	border: 0;
+	background-color:rgba(0, 0, 0, 0.6);
+	font-size: 2.5em;
+	position: absolute;
+}
+
+#gps{
+	right: 0;
+	top: 1em;
+	display: none;
+}
+
+#gps i{
+	top: 0.24em;
+	left: 0.24em;
+	position: absolute;
+}
+
+#center{
+	top: 1em;
+	display: none;
 }
 
 .big_font{
@@ -59,7 +91,7 @@ html, body{
 	background-color: #313131;
 	overflow: hidden;
 	transition: 0.5s;
-	padding-top: 4em;
+	padding-top: 2em;
 	color: white;
 	font-family: Helvetica, Arial, sans-serif;
 	font-weight: bold;
@@ -77,32 +109,36 @@ html, body{
 }
 
 #clock_block{
-	bottom: 7.6em;
+	bottom: 0;
 	width: 8em;
 	height: 1.4em;
 	left: calc(50% - 4em);
 	padding: 0.4em 0 0.1em 0;
+	position: absolute;
 }
 
 #alt_block{
-	bottom: 7.6em;
+	bottom: 0;
 	min-width: 5em;
 	height: 2.4em;
 	left: 0;
 	padding: 0.2em 0.1em 0.4em 0.1em;
+	position: absolute;
 }
 
 #ete_block{
-	bottom: 7.6em;
+	bottom: 0;
 	min-width: 5em;
 	height: 2.4em;
 	right: 0;
 	padding: 0.2em 0.1em 0.4em 0.1em;
+	position: absolute;
 }
 
 #top_ui{
 	top: 0;
 	width: 100%;
+	position: fixed;
 }
 
 table{
@@ -126,9 +162,14 @@ table{
 	padding: 0.2em;
 }
 
-#buttom_ui{
+#bottom_ui{
 	bottom: 0;
 	width: 100%;
+	position: fixed;
+}
+
+#seg_block{
+	position: relative;
 }
 
 #dest_block{
@@ -145,17 +186,37 @@ table{
 	border-left: 1px solid white;
 }
 
+
+input{
+	width: 2.5em;
+}
+
 #menu_items{
 	display: none;
 }
 
 #flight_items{
 	display: none;
+	height: 100%;
+}
+
+#fuel_items{
+	display: none;
+	height: 100%;
+}
+
+#traffic_items{
+	display: none;
+	height: 100%;
 }
 
 #log_items{
 	display: none;
-	overflow: auto;
+	height: 100%;
+}
+
+#atd{
+	display: none;
 }
 
 #flight_table{
@@ -179,47 +240,51 @@ table{
 	text-align: center;
 }
 
-#fuel_items table{
+#flight_table input{
+	width: 4.1em;
+}
+
+#fuel_table{
+	width: 68em;
 	margin-top: 1em;
 	margin-bottom: 1em;
 }
 
-#fuel_items table td{
+#fuel_table td{
 	border: 1px solid white;
 	padding-top: 0.35em;
 	width: 8.33%;
 }
 
-#fuel_items table thead td{
+#fuel_table thead td{
 	background: #595959;
 	padding: 0.5em 0.5em 0.5em 0.5em;
 }
 
-#fuel_items table tbody{
+#fuel_table tbody{
 	text-align: center;
+}
+
+#fuel_table input{
+	width: 4.1em;
 }
 
 #flight_table_scroll{
 	overflow: auto;
-	height: calc(100vh - 20em);
+	height: calc(100% - 21em);
 }
 
 #fuel_table_scroll{
 	overflow: auto;
-	max-height: 35em;
+	height: calc(100% - 17.6em);
 }
-
-#fuel_items{
-	display: none;
-}
-
-#traffic_items{
-	display: none;
-}
-
 
 #menu_title{
 	text-align: center;
+}
+
+.menu_header{
+	padding-left: 1em;
 }
 
 .menu_button{
