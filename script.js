@@ -21,7 +21,8 @@ let ownship = {};
 let gpsWatchID = null;
 let ownshipShape = null;
 let airborneCount = 3;
-let airborneMode = false;
+let airborneMode = null;
+let canRemoveWaypoint = null;
 
 let testMode = false;
 
@@ -69,6 +70,9 @@ function initialize()
 	ownship.etd = [];
 	ownship.ete = [];
 	ownship.gpsAccuracy = null;
+
+	airborneMode = false;
+	canRemoveWaypoint = false;
 		
 	if ("geolocation" in navigator) 
 	{
@@ -983,9 +987,15 @@ function updateOwnship(position)
 
 			const headingDiff = Math.abs(ownship.toGoDtk - ownship.track) % 360;
 
-			if(ownship.toGoDis < 0.1 || (ownship.toGoDis < 3.0 && ((headingDiff > 180) ? 360 - headingDiff : headingDiff) > 90))
+			if(((headingDiff > 180) ? 360 - headingDiff : headingDiff) < 90 && !canRemoveWaypoint)
+			{
+				canRemoveWaypoint = true;
+			}
+
+			if(ownship.toGoDis < 0.1 || (ownship.toGoDis < 3.0 && ((headingDiff > 180) ? 360 - headingDiff : headingDiff) > 90 && canRemoveWaypoint))
 			{
 				removeFirstWaypoint();
+				canRemoveWaypoint = false;
 			}
 			
 			ownship.prevToGoDis = ownship.toGoDis;
