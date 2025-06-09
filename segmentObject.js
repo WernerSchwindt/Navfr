@@ -13,6 +13,7 @@ function SectorObject(endPoint)
 	this.windSpd = null;
 	this.groundSpeed = null;
 	this.heading = null;
+	this.fuelFlow = null;
 	this.ete = [];
 }
 
@@ -29,6 +30,7 @@ SectorObject.prototype.setNull = function()
 	this.windSpd = null;
 	this.groundSpeed = null;
 	this.heading = null;
+	this.fuelFlow = null;
 	this.ete = null;
 }
 
@@ -93,12 +95,12 @@ SectorObject.prototype.calculateWindCorrection = function()
 	}
 	
 	// Convert angles to radians
-	const windDirRad = toRadians(this.windDir);
+	const windAngleRad = toRadians(this.windDir - this.bearing);
 	const crsRad = toRadians(this.bearing);
 
 	// Calculate the crosswind
-	const crosswind = this.windSpd * Math.sin(windDirRad - crsRad);
-	const headwind = this.windSpd * Math.cos(windDirRad - crsRad);
+	const crosswind = this.windSpd * Math.sin(windAngleRad);
+	const headwind = this.windSpd * Math.cos(windAngleRad);
 
 	// Calculate the drift angle and ground speed
 	const driftAngle = Math.asin(crosswind / this.ias);
@@ -112,6 +114,35 @@ SectorObject.prototype.calculateWindCorrection = function()
 	{
 		const hours = this.distance / this.groundSpeed;
 		this.ete = [Math.floor(hours), (hours - Math.floor(hours)) * 60];
+	}
+}
+
+SectorObject.prototype.calculateWind = function(course, groundspeed)
+{
+	if(this.heading == null || groundspeed == null || this.ias == null || course == null)
+	{
+		return;
+	}
+	
+	const courseRad = toRadians(course);
+	const driftAngle = toRadians(this.heading - course);
+	
+	const headwind = (this.ias * Math.cos(driftAngle)) - groundspeed;
+	const crosswind = this.ias * Math.sin(driftAngle);
+	
+	if(headwind == 0)
+	{
+		this.windSpd = (crosswind < 0) ? -crosswind : crosswind;
+		this.windDir = ((crosswind < 0) ? course - 90 : course + 90) % 360;
+	}
+	else
+	{
+		const windAngle = Math.atan(crosswind / headwind);
+		const speed = headwind / Math.cos(windAngle);
+		
+		this.windSpd = (speed < 0) ? -speed : speed; 
+		
+		this.windDir = (course + toDegrees(windAngle) + ((speed < 0) ? 180 : 0)) % 360;
 	}
 }
 

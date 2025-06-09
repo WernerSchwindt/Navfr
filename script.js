@@ -21,13 +21,20 @@ let ownship = {};
 let gpsWatchID = null;
 let ownshipShape = null;
 let airborneCount = 3;
+let airborneMode = false;
 
 let testMode = false;
 
 //Map settings
-let northUp = false;
-let panMode = false;
-let autoCenter = false;
+let northUp = true;
+let panMode = true;
+let animate = false;
+
+// Ownship
+let viewPoint = new ol.geom.Point([0,0]);
+let ownshipStyle = null;
+let ownshipSVG = null;
+let ownshipIcon = null;
 
 function initialize() 
 {
@@ -41,8 +48,9 @@ function initialize()
 	initMap();
 	initEvents();
 	initTimers();
+	initIcons();
 	initButtons();
-	
+
 	geoMag = geoMagFactory(cof2Obj());
 	
 	ownship.position = null;
@@ -54,10 +62,13 @@ function initialize()
 	ownship.track = null;
 	ownship.magVar = null;
 	ownship.toGoDis = null;
+	ownship.prevToGoDis = null;
 	ownship.toGoDtk = null;
+	ownship.toGs = null;
 	ownship.atd = null;
 	ownship.etd = [];
 	ownship.ete = [];
+	ownship.gpsAccuracy = null;
 		
 	if ("geolocation" in navigator) 
 	{
@@ -67,8 +78,21 @@ function initialize()
 			maximumAge: 0,
 		};
 		
-		gpsWatchID = navigator.geolocation.watchPosition(calculateFlight, gpsError, options);
+		gpsWatchID = navigator.geolocation.watchPosition(updateOwnship, gpsError, options);
 	}	
+}
+
+function initIcons()
+{
+	document.getElementById('center').innerHTML = svgShapeToSVG(shapes['center'],'#ffffff', '#000000', 1.5);
+	document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'],'#ffffff', '#000000', 1.5);
+	document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'],'#ffffff', '#000000', 1.5);
+	document.getElementById('open_fuel_plan').innerHTML = svgShapeToSVG(shapes['fuel'],'#ffffff', '#000000', 1.5);
+	document.getElementById('open_flight_plan').innerHTML = svgShapeToSVG(shapes['takeoff'],'#ffffff', '#000000', 1.5);
+	document.getElementById('direct_to').innerHTML = svgShapeToSVG(shapes['direct'],'#ffffff', '#000000', 1.5);
+	document.getElementById('open_traffic').innerHTML = svgShapeToSVG(shapes['wifi'],'#ffffff', '#000000', 1.5);
+	document.getElementById('open_menu').innerHTML = svgShapeToSVG(shapes['bars'],'#ffffff', '#000000', 1.5);
+	document.getElementById('close_menu').innerHTML = svgShapeToSVG(shapes['cross'],'#ffffff', '#000000', 1.5);
 }
 
 function initMap()
@@ -88,7 +112,7 @@ function initMap()
 	
 	layers.push(routeLayer);
 	
-	let ownshipLayer = new ol.layer.Vector({
+	ownshipLayer = new ol.layer.Vector({
 		name: 'ownshipLayer',
 		title: 'Ownship position',
 		type: 'overlay',
@@ -126,7 +150,13 @@ function ol_map_init()
 			multiWorld: true,
 		}),
 		controls: [],
-		interactions: new ol.interaction.defaults({altShiftDragRotate:false, pinchRotate:false,}),
+		interactions: new ol.interaction.defaults({
+			altShiftDragRotate:false,
+			pinchRotate: false,
+			doubleClickZoom: false,
+			dragPan: true,
+			dragZoom: false
+		}),
 		maxTilesLoading: 4,
     });
 }
@@ -151,7 +181,7 @@ function initEvents()
 		if(route.length > 0)
 		{
 			sector.distance = greatCircleDistance(route[route.length-1].latlong, sector.latlong);
-			sector.bearing = (calculateBearing(route[route.length-1].latlong, sector.latlong) - getMagVar(route[route.length-1].latlong, sector.latlong, true)) % 360;//(calculateBearing(route[route.length-1].latlong, sector.latlong) - getMagVar(route[route.length-1].latlong, sector.latlong, true)) % 360;
+			sector.bearing = (calculateBearing(route[route.length-1].latlong, sector.latlong) - getMagVar(route[route.length-1].latlong, sector.latlong, true)) % 360;
 			flightPlanValidated = false;
 			fuelPlanValidated = false;
 		}
@@ -167,34 +197,28 @@ function initEvents()
 		updateValidationUI();
 	});
 	
-	OLMap.on('movestart', function(evt) 
-	{		
+	OLMap.on('pointerdrag', function(evt)
+	{
 		if(!panMode)
 		{
 			panMode = true;
-		}
-    });
-	
-	OLMap.on('moveend', function(evt) 
-	{
-		if(!autoCenter && panMode)
-		{
 			jQuery('#center').css('display', 'block');
+			stopAnimation();
+			updateOwnshipLayer();
+
+			if(northUp)
+			{
+				jQuery('#north_up').css('display', 'none');
+			}
 		}
-		else if(autoCenter)
-		{
-			panMode = false;
-		}
-		
-		autoCenter = false;
-		
-    });
-	
+	});
+
 	if(testMode)
 	{
 		OLMap.on('click', function(evt)
 		{
-			calculateFlight(ol.proj.toLonLat(evt.coordinate));
+			updateOwnship(ol.proj.toLonLat(evt.coordinate));
+
 		});
 	}
 	
@@ -227,6 +251,7 @@ function initButtons()
 	jQuery('#clear_flight_plan').click(clearFlightPlan);
 	jQuery('#calc_flight_plan').click(calculateFlightPlan);
 	jQuery('#center').click(centerMap);
+	jQuery('#north_up').click(toggleNorthUp);
 	
 	jQuery('.ui_button').css('background', blueColour);
 	jQuery('.menu_button').css('background', blueColour);
@@ -310,40 +335,50 @@ function updateRouteLayer()
 
 function updateOwnshipLayer()
 {	
-	ownshipSource.clear();
+	
+	ownshipSVG = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['cessna'], (airborneCount == 0) ? greenColour : 'grey', '#000000', 1));
 
-	if(ownship.position != null)
-	{
-		const mysvg = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['cessna'], (airborneCount == 0) ? greenColour : 'grey', '#000000'));
-		
-		const ownshipStyle = new ol.style.Style({
-			image: new ol.style.Icon({
-				scale: 2.5,
-                imgSize: [shapes['cessna'].w, shapes['cessna'].h],
-                src: mysvg,
-				rotation: (!northUp && !panMode && airborneCount == 0) ? 0 : (toRadians(ownship.track) + OLMap.getView().getRotation()),
-            }),
-			zIndex: 200,
-		});
-		
-		const glPlaneIcon = new ol.Feature(new ol.geom.Point(ownship.mapPosition));
-		glPlaneIcon.setStyle(ownshipStyle);
-		ownshipSource.addFeatures([glPlaneIcon]);
-	}
+	ownshipStyle = new ol.style.Style({
+		image: new ol.style.Icon({
+			scale: 2.5,
+			imgSize: [shapes['cessna'].w, shapes['cessna'].h],
+			src: ownshipSVG,
+			rotation: toRadians(ownship.track) + OLMap.getView().getRotation(),
+		}),
+		zIndex: 200,
+	});
+
+	viewPoint.setCoordinates(ownship.mapPosition);
+	ownshipIcon = new ol.Feature(viewPoint);
+	ownshipIcon.setStyle(ownshipStyle);
+	ownshipSource.clear();
+	ownshipSource.addFeatures([ownshipIcon]);
+
 }
 
 function updateNavData()
 {
 	let totalDistance = 0;
-	let eta = (airborneCount == 0) ? [Math.floor(date.getUTCHours()), date.getUTCMinutes()] : ownship.etd;
-	if(!flightPlanValidated) eta = [];
+	let eta = (airborneMode) ? [Math.floor(date.getUTCHours()), date.getUTCMinutes()] : ownship.etd;
+
+	if(ownship.gpsAccuracy && ownship.gpsAccuracy > 10)
+	{
+		jQuery('#gps').css('display', 'block');
+		document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], amberColour, '#000000', 1.5);
+	}
+	else if(ownship.gpsAccuracy)
+	{
+		jQuery('#gps').css('display', 'none');
+	}
 	
 	if(route.length > 1)
 	{
-		getClosingTime();		
-		const track = (airborneCount == 0) ? ownship.toGoDtk : route[1].bearing;
-		const ete = (airborneCount == 0) ? ownship.ete : route[1].ete;
-		totalDistance += (airborneCount == 0) ? ownship.toGoDis : route[1].distance;
+		if(!flightPlanValidated) eta = [];
+		getClosingTime();	
+		
+		const track = (airborneMode) ? ownship.toGoDtk : route[1].bearing;
+		const ete = (airborneMode) ? ownship.ete : route[1].ete;
+		totalDistance += (airborneMode) ? ownship.toGoDis : route[1].distance;
 		if(flightPlanValidated) eta = addTime(eta, ete);
 		
 		jQuery('#dis').text(getDecimalText(totalDistance));
@@ -361,16 +396,16 @@ function updateNavData()
 		jQuery('#alt').text(getFourDigitText(route[1].altitude, false));		
 		jQuery('#eta').text(getTimeText(eta, false));
 		
-		if(ownship.ete[1] < 1)
+		if(ete[1] < 1)
 		{
-			jQuery('#ete').text(getTwoDigitText(ownship.ete[1] * 60));
+			jQuery('#ete').text(getTwoDigitText(ete[1] * 60));
 		}
 		else
 		{
-			jQuery('#ete').text(getTimeText(ownship.ete, false));
+			jQuery('#ete').text(getTimeText(ete, false));
 		}
 	}
-	else if (route.length == 1 && airborneCount == 0)
+	else if (route.length == 1 && airborneMode)
 	{
 		getClosingTime();
 		jQuery('#dis').text(getDecimalText(ownship.toGoDis));
@@ -663,7 +698,7 @@ function generateFlightPlanTable()
 					
 			if(flightPlanValidated)
 			{
-				if(eta.length != 2 && airborneCount > 0)
+				if(eta.length != 2 && !airborneMode)
 				{
 					eta = addTime(ownship.etd, route[i].ete);
 				}
@@ -685,7 +720,7 @@ function generateFlightPlanTable()
 			distance = '<td class="mid_font">' + getDecimalText(route[i].distance) + '</td>';
 			ete = '<td class="mid_font">' + getTimeText(route[i].ete, true) + '</td>';
 			
-			if(i == 1 && airborneCount == 0)
+			if(i == 1 && airborneMode)
 			{
 				totalDistance = ownship.toGoDis;
 				
@@ -693,7 +728,7 @@ function generateFlightPlanTable()
 				windDir = '<td class="mid_font" id="' + i + '_wind_dir">' + getThreeDigitText(route[i].windDir) + '</td>';
 				windSpd = '<td class="mid_font" id="' + i + '_wind_spd">' + getRoundText(route[i].windSpd) + '</td>';
 				heading = '<td><input type="number"  class="mid_font" id="' + i + '_hdg" value="' + getThreeDigitText(route[i].heading) + '" min="1" max="360"></td>';
-				groundSpeed = '<td class="mid_font">' + getRoundText(ownship.gs) + '</td>';
+				groundSpeed = '<td class="mid_font">' + getRoundText(ownship.toGs) + '</td>';
 				distance = '<td class="mid_font">' + getDecimalText(ownship.toGoDis) + '</td>';
 				ete = '<td class="mid_font">' + getTimeText(ownship.ete, true) + '</td>';
 			}
@@ -718,7 +753,7 @@ function generateFlightPlanTable()
 	htmlTable.replaceChild(newBody, tbody);
 	tbody.remove();
 	
-	if(airborneCount == 0) jQuery('#activeRow').css('background', darkGreenColour);
+	if(airborneMode) jQuery('#activeRow').css('background', darkGreenColour);
 	jQuery('#fp_eta').text(getTimeText(eta, false));
 }
 
@@ -728,6 +763,7 @@ function calculateFlightPlan()
 	let table_ias = null;
 	let table_wind_dir = null;
 	let table_wind_spd = null;
+	let table_heading = null;
 	
 	flightPlanValidated = true;
 	
@@ -737,19 +773,30 @@ function calculateFlightPlan()
 	{
 		table_alt = document.getElementById(i + '_alt').value;
 		table_ias = document.getElementById(i + '_ias').value;
-		table_wind_dir = document.getElementById(i + '_wind_dir').value;
-		table_wind_spd = document.getElementById(i + '_wind_spd').value;
+		
+		route[i].altitude = (table_alt == "") ? null : Number(table_alt);
+		route[i].ias = (table_ias == "") ? null : Number(table_ias);
+		
+		if(i == 1 && airborneMode)
+		{
+			table_heading = document.getElementById(i + '_hdg').value;
+			route[i].heading = (table_heading == "") ? null : Number(table_heading);
+			route[i].calculateWind(ownship.toGoDtk, ownship.toGs);
+		}
+		else
+		{
+			table_wind_dir = document.getElementById(i + '_wind_dir').value;
+			table_wind_spd = document.getElementById(i + '_wind_spd').value;
+			
+			route[i].windDir = (table_wind_dir == "") ? null : Number(table_wind_dir);
+			route[i].windSpd = (table_wind_spd == "") ? null : Number(table_wind_spd);
+			route[i].calculateWindCorrection();
+		}
 		
 		if(table_alt == "" || table_ias == "" || table_wind_dir == "" || table_wind_spd == "")
 		{
 			flightPlanValidated = false;
 		}
-		
-		route[i].altitude = (table_alt == "") ? null : Number(table_alt);
-		route[i].ias = (table_ias == "") ? null : Number(table_ias);
-		route[i].windDir = (table_wind_dir == "") ? null : Number(table_wind_dir);
-		route[i].windSpd = (table_wind_spd == "") ? null : Number(table_wind_spd);
-		route[i].calculateWindCorrection();
 	}
 	
 	generateFlightPlanTable();
@@ -849,7 +896,29 @@ function getDecimalText(value)
 	return (value == null) ? "" : (Math.round(value * 10)/ 10).toFixed(1);
 }
 
-function calculateFlight(position)
+function toggleNorthUp()
+{
+	northUp = !northUp;
+	
+	if(northUp)
+	{ 
+		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['compass'],'#ffffff', '#000000', 1.5);
+		jQuery('#north_up svg').css('transform', 'rotate(-45deg)');
+	}
+	else
+	{
+		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'],'#ffffff', '#000000', 1.5);
+	}
+
+	if(ownship.track && panMode && northUp)
+	{
+		OLMap.getView().setRotation(0);
+		updateOwnshipLayer();
+		jQuery('#north_up').css('display', 'none');
+	}
+}
+
+function updateOwnship(position)
 {	
 	if(position.coords != null)
 	{
@@ -870,37 +939,56 @@ function calculateFlight(position)
 		ownship.magVar = getMagVar(ownship.lastPosition, ownship.position, false);
 		ownship.mapPosition = ol.proj.fromLonLat(ownship.position);
 		
-		if(ownship.gs > 30 && airborneCount > 0) airborneCount--;
+		if(position.coords) ownship.gpsAccuracy = position.coords.accuracy;
+		
+		if(airborneCount == 0 && !airborneMode)
+		{
+			panMode = false;
+			northUp = false;
+			airborneMode = true;
+			
+			jQuery('#north_up').css('display', 'block');
+			startAnimation();
+		}
+
+		if(ownship.gs > 30 && airborneCount > 0) 
+		{
+			airborneCount--;
+		}
 		
 		jQuery('#gs').text(getRoundText(ownship.gs));
 		jQuery('#trk').text(getThreeDigitText((ownship.track - ownship.magVar) % 360));
 		
-		if(!northUp && !panMode && airborneCount == 0) OLMap.getView().setRotation(toRadians(-ownship.track));
-		
-		if(!panMode)
+		if(!panMode) 
 		{
-			autoCenter = true;
-			OLMap.getView().setCenter(ol.proj.fromLonLat([ownship.position[0], ownship.position[1]]));
+			animateView(ol.proj.fromLonLat([ownship.position[0], ownship.position[1]]), ownship.fixTime - ownship.lastFixTime, true);
+		}
+		else
+		{
+			updateOwnshipLayer();
 		}
 		
-		if(airborneCount == 0 && !ownship.atd)
+		if(airborneMode && !ownship.atd)
 		{
 			ownship.atd = [Math.floor(localDate.getUTCHours()), localDate.getUTCMinutes()];
 		}
 		
-		updateOwnshipLayer();
-		
-		if(airborneCount == 0 && route.length > 0)
+		if(airborneMode && route.length > 0)
 		{
 			let point = (route.length == 1) ? 0 : 1;
 			
 			ownship.toGoDis = greatCircleDistance(ownship.position, route[point].latlong);
 			ownship.toGoDtk = (calculateBearing(ownship.position, route[point].latlong) - getMagVar(ownship.position, route[point].latlong, true)) % 360;
-			
-			if(ownship.toGoDis < 0.1)
+			ownship.toGs = Math.max(10, ownship.gs * Math.cos(toRadians(ownship.track - ownship.magVar - ownship.toGoDtk)));
+
+			const headingDiff = Math.abs(ownship.toGoDtk - ownship.track) % 360;
+
+			if(ownship.toGoDis < 0.1 || (ownship.toGoDis < 3.0 && ((headingDiff > 180) ? 360 - headingDiff : headingDiff) > 90))
 			{
 				removeFirstWaypoint();
 			}
+			
+			ownship.prevToGoDis = ownship.toGoDis;
 		}
 	}
 	
@@ -913,18 +1001,20 @@ function gpsError(error)
 	navigator.geolocation.clearWatch(gpsWatchID);
 	log('Warning: ' + error.message);
 	jQuery('#gps').css('display', 'block');
-	jQuery('#gps').css('color', redColour);
+	document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], redColour, '#000000', 1.5);
+	ownship.gpsAccuracy = null;
 }
 
 function centerMap()
 {
 	panMode = false;
 	jQuery('#center').css('display', 'none');
+	jQuery('#north_up').css('display', 'block');
 	
 	if(ownship.position)
 	{
-		autoCenter = true;
-		OLMap.getView().setCenter(ol.proj.fromLonLat([ownship.position[0], ownship.position[1]]));
+		startAnimation();
+		animateView(ol.proj.fromLonLat([ownship.position[0], ownship.position[1]]), 500, false);
 	}
 }
 
@@ -936,9 +1026,7 @@ function getClosingTime()
 		return;
 	}
 	
-	const ownshipTrackRad = toRadians(ownship.track - ownship.magVar);
-	const toGoDtkRad = toRadians(ownship.toGoDtk);
-	const hours = ownship.toGoDis / Math.max(30, ownship.gs * Math.cos(ownshipTrackRad - toGoDtkRad));
+	const hours = ownship.toGoDis / ownship.toGs;
 	
 	ownship.ete = [Math.floor(hours), (hours - Math.floor(hours)) * 60];
 }
@@ -960,6 +1048,58 @@ function log(string)
 	let entry = document.createElement('div');
 	entry.innerHTML = string;
 	log.prepend(entry);
+}
+
+function animateView(newPoint, duration, show) 
+{
+	const view = OLMap.getView();
+	view.cancelAnimations();
+	
+	view.animate(
+		{
+			center: newPoint,
+			rotation: (northUp) ? 0 : toRadians(-ownship.track),
+			duration: duration,
+		},
+	);
+}
+
+function onPostrender(event) 
+{
+	if(ownship.mapPosition)
+	{
+		ownshipStyle = new ol.style.Style({
+			image: new ol.style.Icon({
+				scale: 2.5,
+				imgSize: [shapes['cessna'].w, shapes['cessna'].h],
+				src: ownshipSVG,
+				rotation: toRadians(ownship.track) + OLMap.getView().getRotation(),
+			}),
+			zIndex: 200,
+		});
+
+		viewPoint.setCoordinates(ownship.mapPosition);
+		let vectorContext = ol.getVectorContext(event);
+		vectorContext.setStyle(ownshipStyle);
+		vectorContext.drawGeometry(viewPoint);
+	}
+}
+
+function startAnimation()
+{
+	if(animate) return;
+	
+	ownshipIcon.setGeometry(null);
+	ownshipLayer.on('postrender', onPostrender);
+	animate = true;
+}
+
+function stopAnimation()
+{
+	if(!animate) return;
+
+	ownshipLayer.un('postrender', onPostrender);
+	animate = false;
 }
 
 initialize();
