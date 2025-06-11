@@ -930,9 +930,13 @@ function calculateFuelPlan()
 	fuelPlanValidated = true;
 	
 	ownship.totalFuel = Number(document.getElementById('total_fuel').value);
-	ownship.reserveFuel = document.getElementById('reserve_fuel').value;
-	ownship.reserveFuel = (ownship.reserveFuel == "") ? null : Number(ownship.reserveFuel);
-	ownship.holdFuel = Number(document.getElementById('hold_fuel').value);
+
+	if(route.length > 1)
+	{
+		let reserveFuelField = document.getElementById('reserve_fuel').value;
+		ownship.reserveFuel = (reserveFuelField == "") ? null : Number(reserveFuelField);
+		ownship.holdFuel = Number(document.getElementById('hold_fuel').value);
+	}
 	
 	for(let i = 1; i < route.length; ++i)
 	{
