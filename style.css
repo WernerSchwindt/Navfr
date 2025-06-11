@@ -26,53 +26,55 @@ html, body{
 }
 
 .ui_button{
+	display: flex;
 	cursor: pointer;
 	width: 1.4em;
 	height: 1.4em;
 	color: white;
 	border: 0;
 	font-size: 2.5em;
-	padding: 0.2em;
+	padding: 0;
+	pointer-events: all;
 }
 
 #buttons_top{
 	position: relative;
-	margin-top: 2em;
+	margin-top: 3em;
 	width: 100%;
 }
 
 .ui_button_transparent{
 	cursor: pointer;
-	width: 1.4em;
-	height: 1.4em;
+	width: 1.2em;
+	height: 1.2em;
 	color: white;
 	border: 0;
 	background-color:rgba(0, 0, 0, 0.6);
 	font-size: 2.5em;
 	padding: 0;
+	pointer-events: all;
+}
+
+svg{
+	margin: auto;
 }
 
 #gps{
 	top: 1em;
 	display: none;
-	width: 1.4em;
-	height: 1.4em;
+	border-radius: 0 0.2em 0.2em 0;
 }
 
 #center{
 	display: none;
 	margin-bottom: 0.1em;
-	padding: 0.15em;
+	border-radius: 0.2em 0 0 0.2em;
 }
 
 #north_up{
 	display: none;
 	margin-bottom: 0.1em;
-	padding: 0.15em;
-}
-
-#gps svg{
-	padding: 0.25em;
+	border-radius: 0.2em 0 0 0.2em;
 }
 
 #left_ui{
@@ -152,6 +154,7 @@ html, body{
 	top: 0;
 	width: 100%;
 	position: fixed;
+	pointer-events: none;
 }
 
 table{
@@ -173,12 +176,14 @@ table{
 
 #top_ui td{
 	padding: 0.2em;
+	width: 25%;
 }
 
 #bottom_ui{
 	bottom: 0;
 	width: 100%;
 	position: fixed;
+	pointer-events: none;
 }
 
 #seg_block{

@@ -21,7 +21,7 @@
 			<div id="top_ui">
 				<table class="info_container" >
 					<tr>
-						<td style='width:25%'>
+						<td>
 							<div><span class="small_font">GS:</span></div>
 							<div><span class="big_font" id="gs">--</span><span class="small_font"> kts</span></div>
 						</td>
@@ -33,7 +33,7 @@
 							<div><span class="small_font">DTK:</span></div>
 							<div><span class="big_font" id="desired_trk">---</span><span class="small_font"> °M</span></div>
 						</td>
-						<td style='min-width:25%'>
+						<td>
 							<div><span class="small_font" id="wp_dis">WP</span><span class="small_font"> DIST:</span></div>
 							<div><span class="big_font" id="dis">-.-</span><span class="small_font"> nm</span></div>
 						</td>
@@ -44,7 +44,7 @@
 						<button class="ui_button_transparent" id="north_up"></button>
 						<button class="ui_button_transparent" id="center"></button>
 					</div>
-					<div class="ui_button_transparent" id="gps"></div>
+					<button class="ui_button_transparent" id="gps"></button>
 				</div>
 			</div>
 			
@@ -74,7 +74,7 @@
 						</tr>
 						<tr>
 							<td colspan = 2>
-								<div><span class="small_font">LDG FUEL: </span><span class="big_font" id="landing_fuel">-.-</span><span class="small_font"> gal</span></div>
+								<div><span class="small_font">EST LDG FUEL: </span><span class="big_font" id="landing_fuel">-.-</span><span class="small_font"> gal</span></div>
 							</td>
 						</tr>
 					</table>
@@ -132,7 +132,8 @@
 				</div>
 				<div id="fuel_items">
 					<div class="menu_header">
-						<br><div><span class="mid_font">Total Fuel: </span><input type="number" class="mid_font" id="total_fuel" step="0.1" min="0" value="0.0"><span class="mid_font" id="departure"> gal</span></div>
+						<br><div><span class="mid_font">Useable Fuel: </span><input type="number" class="mid_font" id="total_fuel" step="0.1" min="0" value="0.0" style="width: 3.7em;"><span class="mid_font"> gal</span></div>
+						<br><div><span class="mid_font">Fuel Required: </span><span class="mid_font" id="required_fuel">-.-</span><span class="mid_font"> gal</span></div>
 					</div>
 					<div id="fuel_table_scroll">	
 						<table id='fuel_table'>
@@ -140,8 +141,8 @@
 								<tr>
 									<td class="mid_font">WP NAME</td>
 									<td class="mid_font">ALT (ft)</td>
-									<td class="mid_font">ETE</td>
 									<td class="mid_font">FUEL FLOW (gph)</td>
+									<td class="mid_font">ETE</td>
 									<td class="mid_font">FUEL REQUIRED (gal)</td>
 									<td class="mid_font">FUEL REMAINING (gal)</td>
 								</tr>

@@ -70,6 +70,10 @@ function initialize()
 	ownship.etd = [];
 	ownship.ete = [];
 	ownship.gpsAccuracy = null;
+	ownship.totalFuel = 0;
+	ownship.routeFuelReq = null;
+	ownship.reserveFuel = null;
+	ownship.holdFuel = 0;
 
 	airborneMode = false;
 	canRemoveWaypoint = false;
@@ -88,15 +92,14 @@ function initialize()
 
 function initIcons()
 {
-	document.getElementById('center').innerHTML = svgShapeToSVG(shapes['center'],'#ffffff', '#000000', 1.5);
-	document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'],'#ffffff', '#000000', 1.5);
-	document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'],'#ffffff', '#000000', 1.5);
-	document.getElementById('open_fuel_plan').innerHTML = svgShapeToSVG(shapes['fuel'],'#ffffff', '#000000', 1.5);
-	document.getElementById('open_flight_plan').innerHTML = svgShapeToSVG(shapes['takeoff'],'#ffffff', '#000000', 1.5);
-	document.getElementById('direct_to').innerHTML = svgShapeToSVG(shapes['direct'],'#ffffff', '#000000', 1.5);
-	document.getElementById('open_traffic').innerHTML = svgShapeToSVG(shapes['wifi'],'#ffffff', '#000000', 1.5);
-	document.getElementById('open_menu').innerHTML = svgShapeToSVG(shapes['bars'],'#ffffff', '#000000', 1.5);
-	document.getElementById('close_menu').innerHTML = svgShapeToSVG(shapes['cross'],'#ffffff', '#000000', 1.5);
+	document.getElementById('center').innerHTML = svgShapeToSVG(shapes['center'],'#ffffff', '#000000', overlayButtonSize);
+	document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'],'#ffffff', '#000000', overlayButtonSize);
+	document.getElementById('open_fuel_plan').innerHTML = svgShapeToSVG(shapes['fuel'],'#ffffff', '#000000', mainButtonSize);
+	document.getElementById('open_flight_plan').innerHTML = svgShapeToSVG(shapes['takeoff'],'#ffffff', '#000000', mainButtonSize);
+	document.getElementById('direct_to').innerHTML = svgShapeToSVG(shapes['direct'],'#ffffff', '#000000', mainButtonSize);
+	document.getElementById('open_traffic').innerHTML = svgShapeToSVG(shapes['wifi'],'#ffffff', '#000000', mainButtonSize);
+	document.getElementById('open_menu').innerHTML = svgShapeToSVG(shapes['bars'],'#ffffff', '#000000', mainButtonSize);
+	document.getElementById('close_menu').innerHTML = svgShapeToSVG(shapes['cross'],'#ffffff', '#000000', mainButtonSize);
 }
 
 function initMap()
@@ -109,6 +112,8 @@ function initMap()
         title: 'Route Layer',
         type: 'overlay',
         source: routeSource,
+		updateWhileInteracting: true,
+    	updateWhileAnimating: true,
         zIndex: 150,
 		declutter: false,
 		renderBuffer: 60,
@@ -120,6 +125,8 @@ function initMap()
 		name: 'ownshipLayer',
 		title: 'Ownship position',
 		type: 'overlay',
+		updateWhileInteracting: true,
+    	updateWhileAnimating: true,
 		source: ownshipSource,
 		zIndex: 200,
 		declutter: false,
@@ -178,10 +185,13 @@ function initEvents()
 	OLMap.on('contextmenu', function(evt)
 	{
 		evt.preventDefault();
-		
+
+		const id = getNextID();
 		let sector = new SectorObject(findClosestPoint(evt.coordinate));
-		sector.setName(route.length);
-		
+
+		sector.sectorName = "WP" + id;
+		sector.id = id;
+				
 		if(route.length > 0)
 		{
 			sector.distance = greatCircleDistance(route[route.length-1].latlong, sector.latlong);
@@ -206,7 +216,7 @@ function initEvents()
 		if(!panMode)
 		{
 			panMode = true;
-			jQuery('#center').css('display', 'block');
+			jQuery('#center').css('display', 'flex');
 			stopAnimation();
 			updateOwnshipLayer();
 
@@ -254,6 +264,7 @@ function initButtons()
 	jQuery('#remove_last_waypoint').click(removeLastWaypoint);
 	jQuery('#clear_flight_plan').click(clearFlightPlan);
 	jQuery('#calc_flight_plan').click(calculateFlightPlan);
+	jQuery('#calc_fuel_plan').click(calculateFuelPlan);
 	jQuery('#center').click(centerMap);
 	jQuery('#north_up').click(toggleNorthUp);
 	
@@ -364,11 +375,14 @@ function updateNavData()
 {
 	let totalDistance = 0;
 	let eta = (airborneMode) ? [Math.floor(date.getUTCHours()), date.getUTCMinutes()] : ownship.etd;
+	let landingFuel = (fuelPlanValidated) ? ownship.totalFuel : null;
+	
+	jQuery('#landing_fuel').text('-.-');
 
 	if(ownship.gpsAccuracy && ownship.gpsAccuracy > 10)
 	{
-		jQuery('#gps').css('display', 'block');
-		document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], amberColour, '#000000', 1.5);
+		jQuery('#gps').css('display', 'flex');
+		document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], amberColour, '#000000', overlayButtonSize);
 	}
 	else if(ownship.gpsAccuracy)
 	{
@@ -377,13 +391,15 @@ function updateNavData()
 	
 	if(route.length > 1)
 	{
-		if(!flightPlanValidated) eta = [];
-		getClosingTime();	
+		if(!flightPlanValidated) eta = [];	
 		
 		const track = (airborneMode) ? ownship.toGoDtk : route[1].bearing;
 		const ete = (airborneMode) ? ownship.ete : route[1].ete;
+		const routeFuel = (airborneMode) ? ownship.routeFuelReq : route[1].fuelRequired;
 		totalDistance += (airborneMode) ? ownship.toGoDis : route[1].distance;
+		
 		if(flightPlanValidated) eta = addTime(eta, ete);
+		if(fuelPlanValidated) landingFuel -= routeFuel;
 		
 		jQuery('#dis').text(getDecimalText(totalDistance));
 		jQuery('#desired_trk').text(getThreeDigitText(track));
@@ -394,11 +410,13 @@ function updateNavData()
 		{
 			totalDistance += route[i].distance;
 			if(flightPlanValidated) eta = addTime(eta, route[i].ete);
+			if(fuelPlanValidated) landingFuel -= route[i].fuelRequired;
 		}
 		
 		jQuery('#total_dis').text(getDecimalText(totalDistance));
 		jQuery('#alt').text(getFourDigitText(route[1].altitude, false));		
 		jQuery('#eta').text(getTimeText(eta, false));
+		if(landingFuel > 0) jQuery('#landing_fuel').text(getDecimalText(landingFuel));
 		
 		if(ete[1] < 1)
 		{
@@ -411,13 +429,13 @@ function updateNavData()
 	}
 	else if (route.length == 1 && airborneMode)
 	{
-		getClosingTime();
 		jQuery('#dis').text(getDecimalText(ownship.toGoDis));
 		jQuery('#total_dis').text(getDecimalText(ownship.toGoDis));
 		jQuery('#desired_trk').text(getThreeDigitText(ownship.toGoDtk));
 		jQuery('#wp_dis').text(route[0].sectorName);
 		jQuery('#wp_ete').text(route[0].sectorName);
 		jQuery('#eta').text(getTimeText(addTime(eta, ownship.ete), false));
+		if(landingFuel > 0) jQuery('#landing_fuel').text(landingFuel - ownship.routeFuelReq);
 		
 		if(ownship.ete[1] < 1)
 		{
@@ -604,7 +622,10 @@ function removeLastWaypoint()
 		route[route.length-1].setNull();
 		route.pop();
 		updateRouteLayer();
+		generateFlightPlanTable();
+		generateFuelPlanTable();
 		calculateFlightPlan();
+		calculateFuelPlan();
 		closeMenu();
 		
 		if(route.length < 2)
@@ -717,8 +738,8 @@ function generateFlightPlanTable()
 			}
 			
 			course = '<td class="mid_font">' + getThreeDigitText(route[i].bearing) + '</td>';
-			windDir = '<td><input type="number"  class="mid_font" id="' + i + '_wind_dir" value="' + getThreeDigitText(route[i].windDir) + '" min="1" max="360"></td>';
-			windSpd = '<td><input type="number"  class="mid_font" id="' + i + '_wind_spd" value="' + getRoundText(route[i].windSpd) + '" min="0"></td>';
+			windDir = '<td><input type="number"  class="mid_font" id="' + route[i].id + '_wind_dir" value="' + getThreeDigitText(route[i].windDir) + '" min="1" max="360"></td>';
+			windSpd = '<td><input type="number"  class="mid_font" id="' + route[i].id + '_wind_spd" value="' + getRoundText(route[i].windSpd) + '" min="0"></td>';
 			heading = '<td class="mid_font">' + getThreeDigitText(route[i].heading) + '</td>';
 			groundSpeed = '<td class="mid_font">' + getRoundText(route[i].groundSpeed) + '</td>';
 			distance = '<td class="mid_font">' + getDecimalText(route[i].distance) + '</td>';
@@ -729,17 +750,17 @@ function generateFlightPlanTable()
 				totalDistance = ownship.toGoDis;
 				
 				course = '<td class="mid_font">' + getThreeDigitText(ownship.toGoDtk) + '</td>';
-				windDir = '<td class="mid_font" id="' + i + '_wind_dir">' + getThreeDigitText(route[i].windDir) + '</td>';
-				windSpd = '<td class="mid_font" id="' + i + '_wind_spd">' + getRoundText(route[i].windSpd) + '</td>';
-				heading = '<td><input type="number"  class="mid_font" id="' + i + '_hdg" value="' + getThreeDigitText(route[i].heading) + '" min="1" max="360"></td>';
+				windDir = '<td class="mid_font" id="' + route[i].id + '_wind_dir">' + getThreeDigitText(route[i].windDir) + '</td>';
+				windSpd = '<td class="mid_font" id="' + route[i].id + '_wind_spd">' + getRoundText(route[i].windSpd) + '</td>';
+				heading = '<td><input type="number"  class="mid_font" id="' + route[i].id + '_hdg" value="' + getThreeDigitText(route[i].heading) + '" min="1" max="360"></td>';
 				groundSpeed = '<td class="mid_font">' + getRoundText(ownship.toGs) + '</td>';
 				distance = '<td class="mid_font">' + getDecimalText(ownship.toGoDis) + '</td>';
 				ete = '<td class="mid_font">' + getTimeText(ownship.ete, true) + '</td>';
 			}
 			
-			rowConstruct = '<td>' + route[i].sectorName + '</td>';
-			rowConstruct += '<td><input type="number"  class="mid_font" id="' + i + '_alt" value="' + getFourDigitText(route[i].altitude, true) + '" step="100" min="0"></td>';
-			rowConstruct += '<td><input type="number"  class="mid_font" id="' + i + '_ias" value="' + getRoundText(route[i].ias) + '" min="0"></td>';
+			rowConstruct = '<td class="mid_font">' + route[i].sectorName + '</td>';
+			rowConstruct += '<td><input type="number"  class="mid_font" id="' + route[i].id + '_alt" value="' + getFourDigitText(route[i].altitude, true) + '" step="100" min="0"></td>';
+			rowConstruct += '<td><input type="number"  class="mid_font" id="' + route[i].id + '_ias" value="' + getRoundText(route[i].ias) + '" min="0"></td>';
 			rowConstruct += course;
 			rowConstruct += windDir;
 			rowConstruct += windSpd;
@@ -775,22 +796,22 @@ function calculateFlightPlan()
 	
 	for(let i = 1; i < route.length; ++i)
 	{
-		table_alt = document.getElementById(i + '_alt').value;
-		table_ias = document.getElementById(i + '_ias').value;
+		table_alt = document.getElementById(route[i].id + '_alt').value;
+		table_ias = document.getElementById(route[i].id + '_ias').value;
 		
 		route[i].altitude = (table_alt == "") ? null : Number(table_alt);
 		route[i].ias = (table_ias == "") ? null : Number(table_ias);
 		
 		if(i == 1 && airborneMode)
 		{
-			table_heading = document.getElementById(i + '_hdg').value;
+			table_heading = document.getElementById(route[i].id + '_hdg').value;
 			route[i].heading = (table_heading == "") ? null : Number(table_heading);
 			route[i].calculateWind(ownship.toGoDtk, ownship.toGs);
 		}
 		else
 		{
-			table_wind_dir = document.getElementById(i + '_wind_dir').value;
-			table_wind_spd = document.getElementById(i + '_wind_spd').value;
+			table_wind_dir = document.getElementById(route[i].id + '_wind_dir').value;
+			table_wind_spd = document.getElementById(route[i].id + '_wind_spd').value;
 			
 			route[i].windDir = (table_wind_dir == "") ? null : Number(table_wind_dir);
 			route[i].windSpd = (table_wind_spd == "") ? null : Number(table_wind_spd);
@@ -812,29 +833,121 @@ function generateFuelPlanTable()
 	let newBody = document.createElement('tbody');
 	let htmlTable = document.getElementById('fuel_table');
 	let tbody = htmlTable.tBodies[0];
+	let requiredFuel = null;
+
+	jQuery('#total_fuel').prop("value", getDecimalText(ownship.totalFuel));
 
 	if(route.length > 1)
 	{
-		let totalFuel = 0;
-		
+		let totalFuelRemaining = ownship.totalFuel;
+		let ete = null;
+		let fuelRequiredField = null;
+		let newRow = null;
+		let rowConstruct = null;
+		requiredFuel = 0;
+
 		for(let i = 1; i < route.length; ++i)
 		{
-			//totalDistance += route[i].distance;
+			newRow = document.createElement('tr');
+			if(i == 1) newRow.id = "activeRowFuel"; 
+
+			ete = '<td class="mid_font">' + getTimeText(route[i].ete, true) + '</td>';
+			fuelRequiredField = '<td class="mid_font">' + getDecimalText(route[i].fuelRequired) + '</td>';
 			
-			let newRow = document.createElement('tr');
-			let rowConstruct = '<td>' + route[i].sectorName + '</td>';
-			rowConstruct += '<td>' + getFourDigitText(route[i].altitude, true) + '</td>';
-			rowConstruct += '<td class="mid_font">' + getTimeText(route[i].ete, true) + '</td>';
-			rowConstruct += '<td><input type="number"  class="mid_font" id="' + i + '_fuel_flow" value="' + getRoundText(route[i].ias) + '" min="0"></td>';
-			rowConstruct += '<td>' + getDecimalText(0) + '</td>';
-			rowConstruct += '<td>' + getDecimalText(0) + '</td>';
+			if(i == 1 && airborneMode)
+			{
+				ete = '<td class="mid_font">' + getTimeText(ownship.ete, true) + '</td>';
+				fuelRequiredField = '<td class="mid_font">' + getDecimalText(ownship.routeFuelReq) + '</td>';
+				totalFuelRemaining -= ownship.routeFuelReq;
+				requiredFuel += ownship.routeFuelReq;
+			}
+			else
+			{
+				totalFuelRemaining -= route[i].fuelRequired;
+				requiredFuel += route[i].fuelRequired;
+			}
+
+			rowConstruct = '<td class="mid_font">' + route[i].sectorName + '</td>';
+			rowConstruct += '<td class="mid_font">' + getFourDigitText(route[i].altitude, true) + '</td>';
+			rowConstruct += '<td><input type="number"  class="mid_font" id="' + route[i].id + '_fuel_flow" value="' + getDecimalText(route[i].fuelFlow) + '" step="0.1" min="0"></td>';
+			rowConstruct += ete;
+			rowConstruct += fuelRequiredField;
+			rowConstruct += '<td class="mid_font">' + getDecimalText(totalFuelRemaining) + '</td>';
 			newRow.innerHTML = rowConstruct;
 			newBody.appendChild(newRow);
 		}
+
+		if(ownship.holdFuel)
+		{
+			totalFuelRemaining -= ownship.holdFuel;
+			requiredFuel += ownship.holdFuel;
+		}
+
+		newRow = document.createElement('tr');
+		rowConstruct = '<td class="mid_font">Hold Fuel</td>';
+		rowConstruct += '<td class="mid_font">-</td><td class="mid_font">-</td><td class="mid_font">-</td>'
+		rowConstruct += '<td><input type="number"  class="mid_font" id="hold_fuel" value="' + getDecimalText(ownship.holdFuel) + '" step="0.1" min="0"></td>';
+		rowConstruct += '<td class="mid_font">' + getDecimalText(totalFuelRemaining) + '</td>';
+		newRow.innerHTML = rowConstruct;
+		newBody.appendChild(newRow);
+
+		if(ownship.reserveFuel)
+		{ 
+			
+			totalFuelRemaining -= ownship.reserveFuel;
+			requiredFuel += ownship.reserveFuel;
+		}
+
+		newRow = document.createElement('tr');
+		rowConstruct = '<td class="mid_font">Reserve Fuel</td>';
+		rowConstruct += '<td class="mid_font">-</td><td class="mid_font">-</td><td class="mid_font">-</td>'
+		rowConstruct += '<td><input type="number"  class="mid_font" id="reserve_fuel" value="' + getDecimalText(ownship.reserveFuel) + '" step="0.1" min="0"></td>';
+		rowConstruct += '<td class="mid_font">' + getDecimalText(totalFuelRemaining) + '</td>';
+		newRow.innerHTML = rowConstruct;
+		newBody.appendChild(newRow);
+
+	}
+
+	if(fuelPlanValidated && requiredFuel)
+	{
+		jQuery('#required_fuel').text(getDecimalText(requiredFuel));
+	} 
+	else
+	{
+		jQuery('#required_fuel').text('-.-');
 	}
 	
 	htmlTable.replaceChild(newBody, tbody);
 	tbody.remove();
+
+	if(airborneMode) jQuery('#activeRowFuel').css('background', darkGreenColour);
+}
+
+function calculateFuelPlan()
+{
+	let table_fuel_flow = null;
+	
+	fuelPlanValidated = true;
+	
+	ownship.totalFuel = Number(document.getElementById('total_fuel').value);
+	ownship.reserveFuel = document.getElementById('reserve_fuel').value;
+	ownship.reserveFuel = (ownship.reserveFuel == "") ? null : Number(ownship.reserveFuel);
+	ownship.holdFuel = Number(document.getElementById('hold_fuel').value);
+	
+	for(let i = 1; i < route.length; ++i)
+	{
+		table_fuel_flow = document.getElementById(route[i].id + '_fuel_flow').value;
+		route[i].fuelFlow = (table_fuel_flow == "") ? null : Number(table_fuel_flow);
+
+		if(route[i].fuelFlow == null || !ownship.reserveFuel || ownship.reserveFuel == 0 || (!airborneMode && route[i].ete.length == 0)) fuelPlanValidated = false;
+
+		if(i == 1 && airborneMode) ownship.routeFuelReq = route[i].fuelFlow * (ownship.ete[0] + (ownship.ete[1] / 60));
+
+		if(route[i].ete.length != 0) route[i].fuelRequired = (route[i].ete[0] + (route[i].ete[1] / 60)) * route[i].fuelFlow;
+	}
+	
+	generateFuelPlanTable();
+	updateValidationUI();
 }
 
 function updateValidationUI()
@@ -906,12 +1019,12 @@ function toggleNorthUp()
 	
 	if(northUp)
 	{ 
-		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['compass'],'#ffffff', '#000000', 1.5);
+		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['compass'],'#ffffff', '#000000', overlayButtonSize);
 		jQuery('#north_up svg').css('transform', 'rotate(-45deg)');
 	}
 	else
 	{
-		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'],'#ffffff', '#000000', 1.5);
+		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'],'#ffffff', '#000000', overlayButtonSize);
 	}
 
 	if(ownship.track && panMode && northUp)
@@ -938,7 +1051,8 @@ function updateOwnship(position)
 	
 	if(ownship.lastPosition != null)
 	{
-		ownship.gs = greatCircleDistance(ownship.lastPosition, ownship.position) * 3600000 / (ownship.fixTime - ownship.lastFixTime);
+		let deltaTime = ownship.fixTime - ownship.lastFixTime;
+		ownship.gs = greatCircleDistance(ownship.lastPosition, ownship.position) * 3600000 / deltaTime;
 		ownship.track = calculateBearing(ownship.lastPosition, ownship.position);
 		ownship.magVar = getMagVar(ownship.lastPosition, ownship.position, false);
 		ownship.mapPosition = ol.proj.fromLonLat(ownship.position);
@@ -951,7 +1065,7 @@ function updateOwnship(position)
 			northUp = false;
 			airborneMode = true;
 			
-			jQuery('#north_up').css('display', 'block');
+			jQuery('#north_up').css('display', 'flex');
 			startAnimation();
 		}
 
@@ -965,7 +1079,7 @@ function updateOwnship(position)
 		
 		if(!panMode) 
 		{
-			animateView(ol.proj.fromLonLat([ownship.position[0], ownship.position[1]]), ownship.fixTime - ownship.lastFixTime, true);
+			animateView(ol.proj.fromLonLat([ownship.position[0], ownship.position[1]]), deltaTime, true);
 		}
 		else
 		{
@@ -984,6 +1098,14 @@ function updateOwnship(position)
 			ownship.toGoDis = greatCircleDistance(ownship.position, route[point].latlong);
 			ownship.toGoDtk = (calculateBearing(ownship.position, route[point].latlong) - getMagVar(ownship.position, route[point].latlong, true)) % 360;
 			ownship.toGs = Math.max(10, ownship.gs * Math.cos(toRadians(ownship.track - ownship.magVar - ownship.toGoDtk)));
+
+			getClosingTime();
+
+			if(route[point].fuelFlow)
+			{
+				ownship.routeFuelReq = route[point].fuelFlow * (ownship.ete[0] + (ownship.ete[1] / 60));
+				ownship.totalFuel -= route[point].fuelFlow * deltaTime / 3600000;
+			}
 
 			const headingDiff = Math.abs(ownship.toGoDtk - ownship.track) % 360;
 
@@ -1010,8 +1132,8 @@ function gpsError(error)
 {
 	navigator.geolocation.clearWatch(gpsWatchID);
 	log('Warning: ' + error.message);
-	jQuery('#gps').css('display', 'block');
-	document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], redColour, '#000000', 1.5);
+	jQuery('#gps').css('display', 'flex');
+	document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], redColour, '#000000', overlayButtonSize);
 	ownship.gpsAccuracy = null;
 }
 
@@ -1019,7 +1141,7 @@ function centerMap()
 {
 	panMode = false;
 	jQuery('#center').css('display', 'none');
-	jQuery('#north_up').css('display', 'block');
+	jQuery('#north_up').css('display', 'flex');
 	
 	if(ownship.position)
 	{
@@ -1110,6 +1232,18 @@ function stopAnimation()
 
 	ownshipLayer.un('postrender', onPostrender);
 	animate = false;
+}
+
+function getNextID()
+{
+	let id = 0;
+
+	for(let i = 0; i < route.length; ++i)
+	{
+		if(route[i].id > id) id = route[i].id;
+	}
+
+	return id + 1;
 }
 
 initialize();

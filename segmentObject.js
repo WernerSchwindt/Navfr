@@ -3,6 +3,7 @@
 function SectorObject(endPoint)
 {
 	this.sectorName = "N/A";
+	this.id = null;
 	this.endPoint = endPoint;
 	this.latlong = ol.proj.toLonLat(endPoint);	
 	this.bearing = null;
@@ -14,12 +15,14 @@ function SectorObject(endPoint)
 	this.groundSpeed = null;
 	this.heading = null;
 	this.fuelFlow = null;
+	this.fuelRequired = null;
 	this.ete = [];
 }
 
 SectorObject.prototype.setNull = function()
 {
 	this.sectorName = null;
+	this.id = null;
 	this.endPoint = null;
 	this.latlong = null;
 	this.bearing = null;
@@ -31,6 +34,7 @@ SectorObject.prototype.setNull = function()
 	this.groundSpeed = null;
 	this.heading = null;
 	this.fuelFlow = null;
+	this.fuelRequired = null;
 	this.ete = null;
 }
 
@@ -80,11 +84,6 @@ function getMagVar(startLatLong, finishLatLong, isMid)
 	{
 		return geoMag(finishLatLong[1], finishLatLong[0]).dec;
 	}
-}
-
-SectorObject.prototype.setName = function(name)
-{
-	this.sectorName = "WP" + name;
 }
 
 SectorObject.prototype.calculateWindCorrection = function()

@@ -10,7 +10,7 @@ const zoomLvl = 12;
 //Styling
 const labelFont = 'bold 1em tahoma';
 const labelColor = new ol.style.Fill({color: 'white'});
-const bgFill = new ol.style.Fill({color: 'rgba(0, 0, 0, 0.75)'});
+const bgFill = new ol.style.Fill({color: 'rgba(0, 0, 0, 0.6)'});
 const routeWidth = 5;
 const activeRouteWidth = 7;
 const routeColor = 'black';
@@ -23,3 +23,5 @@ const greenColour = '#00cc22';
 const amberColour = '#cc9900';
 const redColour = '#cc0000';
 const darkGreenColour = '#00400b';
+const mainButtonSize = 1.5;
+const overlayButtonSize = 1.25;
