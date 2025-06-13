@@ -435,7 +435,7 @@ function updateNavData()
 		jQuery('#wp_dis').text(route[0].sectorName);
 		jQuery('#wp_ete').text(route[0].sectorName);
 		jQuery('#eta').text(getTimeText(addTime(eta, ownship.ete), false));
-		if(landingFuel > 0) jQuery('#landing_fuel').text(landingFuel - ownship.routeFuelReq);
+		if(landingFuel > 0) jQuery('#landing_fuel').text(getDecimalText(landingFuel - ownship.routeFuelReq));
 		
 		if(ownship.ete[1] < 1)
 		{
