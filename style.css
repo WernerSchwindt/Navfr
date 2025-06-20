@@ -1,31 +1,32 @@
-html, body{
+html,
+body {
 	overflow: hidden;
-    height: 100%;
+	height: 100%;
 	margin: 0px;
 }
 
-#layout_container{
-    height: 100%;
+#layout_container {
+	height: 100%;
 	width: 100%;
 }
 
-.info_container{
+.info_container {
 	color: white;
 	text-align: center;
 	font-family: Helvetica, Arial, sans-serif;
 	font-weight: bold;
-	background-color:rgba(0, 0, 0, 0.6);
+	background-color: rgba(0, 0, 0, 0.6);
 	text-shadow: 0px 0px 3px black;
 	line-height: 1.1em;
 }
 
-#button_container{
+#button_container {
 	display: flex;
-    justify-content: space-between;
+	justify-content: space-between;
 	padding: 0 1.5em 0 1.5em;
 }
 
-.ui_button{
+.ui_button {
 	display: flex;
 	cursor: pointer;
 	width: 1.4em;
@@ -37,60 +38,60 @@ html, body{
 	pointer-events: all;
 }
 
-#buttons_top{
+#buttons_top {
 	position: relative;
 	margin-top: 3em;
 	width: 100%;
 }
 
-.ui_button_transparent{
+.ui_button_transparent {
 	cursor: pointer;
 	width: 1.2em;
 	height: 1.2em;
 	color: white;
 	border: 0;
-	background-color:rgba(0, 0, 0, 0.6);
+	background-color: rgba(0, 0, 0, 0.6);
 	font-size: 2.5em;
 	padding: 0;
 	pointer-events: all;
 }
 
-svg{
+svg {
 	margin: auto;
 }
 
-#gps{
+#gps {
 	top: 1em;
 	display: none;
 	border-radius: 0 0.2em 0.2em 0;
 }
 
-#center{
+#center {
 	display: none;
 	margin-bottom: 0.1em;
 	border-radius: 0.2em 0 0 0.2em;
 }
 
-#north_up{
+#north_up {
 	display: none;
 	margin-bottom: 0.1em;
 	border-radius: 0.2em 0 0 0.2em;
 }
 
-#left_ui{
+#left_ui {
 	right: 0;
 	position: absolute;
 }
 
-.big_font{
+.big_font {
 	font-size: 1.5em;
 }
 
-.small_font{
+.small_font {
 	font-size: 0.75em;
 }
 
-.mid_font{
+.mid_font {
 	font-size: 1.0em;
 }
 
@@ -112,18 +113,18 @@ svg{
 	font-weight: bold;
 }
 
-#map_container{
-    position: relative;
+#map_container {
+	position: relative;
 	height: 100vh;
 }
 
-#map_canvas{
-    position: absolute;
-    width: 100%;
-    height: 100%;
+#map_canvas {
+	position: absolute;
+	width: 100%;
+	height: 100%;
 }
 
-#clock_block{
+#clock_block {
 	bottom: 0;
 	width: 8em;
 	height: 1.4em;
@@ -132,7 +133,7 @@ svg{
 	position: absolute;
 }
 
-#alt_block{
+#alt_block {
 	bottom: 0;
 	min-width: 5em;
 	height: 2.4em;
@@ -141,7 +142,7 @@ svg{
 	position: absolute;
 }
 
-#ete_block{
+#ete_block {
 	bottom: 0;
 	min-width: 5em;
 	height: 2.4em;
@@ -150,162 +151,167 @@ svg{
 	position: absolute;
 }
 
-#top_ui{
+#top_ui {
 	top: 0;
 	width: 100%;
 	position: fixed;
 	pointer-events: none;
 }
 
-table{
+table {
 	width: 100%;
 	border-collapse: collapse;
 }
 
-#top_ui td:first-child{
-	border-right:1px solid white;
+#top_ui td:first-child {
+	border-right: 1px solid white;
 }
 
-#top_ui td:nth-child(2){
-	border-right:1px solid white;
+#top_ui td:nth-child(2) {
+	border-right: 1px solid white;
 }
 
-#top_ui td:last-child{
-	border-left:1px solid white;
+#top_ui td:last-child {
+	border-left: 1px solid white;
 }
 
-#top_ui td{
+#top_ui td {
 	padding: 0.2em;
 	width: 25%;
 }
 
-#bottom_ui{
+#bottom_ui {
 	bottom: 0;
 	width: 100%;
 	position: fixed;
 	pointer-events: none;
 }
 
-#seg_block{
+#seg_block {
 	position: relative;
 }
 
-#dest_block{
+#dest_block {
 	line-height: 1.3em;
 }
 
-#dest_block table td{
+#dest_block table td {
 	border-top: 1px solid white;
 	border-bottom: 1px solid white;
 	padding-top: 0.35em;
 }
 
-#dest_block table td:nth-child(2){
+#dest_block table td:nth-child(2) {
 	border-left: 1px solid white;
 }
 
 
-input{
+input {
 	width: 2.5em;
 }
 
-#menu_items{
+#menu_items {
 	display: none;
 }
 
-#flight_items{
-	display: none;
-	height: 100%;
-}
-
-#fuel_items{
+#flight_items {
 	display: none;
 	height: 100%;
 }
 
-#traffic_items{
+#fuel_items {
 	display: none;
 	height: 100%;
 }
 
-#log_items{
+#traffic_items {
 	display: none;
 	height: 100%;
 }
 
-#atd{
+#log_items {
+	display: none;
+	height: 100%;
+}
+
+#available_fp_items {
+	display: none;
+	height: 100%;
+}
+
+#atd {
 	display: none;
 }
 
-#flight_table{
+#flight_table {
 	width: 102em;
 	margin-top: 1em;
 	margin-bottom: 1em;
 }
 
-#flight_table td{
+#flight_table td {
 	border: 1px solid white;
 	padding-top: 0.35em;
 	width: 8.33%;
 }
 
-#flight_table thead td{
+#flight_table thead td {
 	background: #595959;
 	padding: 0.5em 0.5em 0.5em 0.5em;
 }
 
-#flight_table tbody{
+#flight_table tbody {
 	text-align: center;
 }
 
-#flight_table input{
+#flight_table input {
 	width: 4.1em;
 }
 
-#fuel_table{
+#fuel_table {
 	width: 68em;
 	margin-top: 1em;
 	margin-bottom: 1em;
 }
 
-#fuel_table td{
+#fuel_table td {
 	border: 1px solid white;
 	padding-top: 0.35em;
 	width: 8.33%;
 }
 
-#fuel_table thead td{
+#fuel_table thead td {
 	background: #595959;
 	padding: 0.5em 0.5em 0.5em 0.5em;
 }
 
-#fuel_table tbody{
+#fuel_table tbody {
 	text-align: center;
 }
 
-#fuel_table input{
+#fuel_table input {
 	width: 4.1em;
 }
 
-#flight_table_scroll{
+#flight_table_scroll {
 	overflow: auto;
 	height: calc(100% - 21em);
 }
 
-#fuel_table_scroll{
+#fuel_table_scroll {
 	overflow: auto;
-	height: calc(100% - 17.6em);
+	height: calc(100% - 19.9em);
 }
 
-#menu_title{
+#menu_title {
 	text-align: center;
 }
 
-.menu_header{
+.menu_header {
 	padding-left: 1em;
 }
 
-.menu_button{
+.menu_button {
 	width: 100%;
 	height: 3em;
 	margin-top: 1em;
@@ -328,6 +334,3 @@ input{
 .fullscreen {
 	width: 100%;
 }
-
-
-

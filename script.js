@@ -10,6 +10,7 @@ let ownshipLayer = null;
 let routeSource = new ol.source.Vector();
 let ownshipSource = new ol.source.Vector();
 let route = [];
+let completedRoute = [];
 let geoMag = null;
 let currZoom = null;
 let snap = true;
@@ -25,6 +26,7 @@ let airborneMode = null;
 let canRemoveWaypoint = null;
 
 let testMode = false;
+let simMode = false;
 
 //Map settings
 let northUp = true;
@@ -32,20 +34,20 @@ let panMode = true;
 let animate = false;
 
 // Ownship
-let viewPoint = new ol.geom.Point([0,0]);
+let viewPoint = new ol.geom.Point([0, 0]);
 let ownshipStyle = null;
 let ownshipSVG = null;
 let ownshipIcon = null;
 
-function initialize() 
-{
-	let params = new URLSearchParams(document.location.search);
-	
-	if(params.get("test"))
-	{
+function initialize() {
+	if (params.get("test")) {
 		testMode = true;
 	}
-	
+
+	if (params.get("sim")) {
+		simMode = true;
+	}
+
 	initMap();
 	initEvents();
 	initTimers();
@@ -53,7 +55,7 @@ function initialize()
 	initButtons();
 
 	geoMag = geoMagFactory(cof2Obj());
-	
+
 	ownship.position = null;
 	ownship.mapPosition = null;
 	ownship.fixTime = null;
@@ -77,62 +79,67 @@ function initialize()
 
 	airborneMode = false;
 	canRemoveWaypoint = false;
-		
-	if ("geolocation" in navigator) 
-	{
+
+	if ("geolocation" in navigator) {
 		let options = {
 			enableHighAccuracy: true,
 			timeout: 60000,
 			maximumAge: 0,
 		};
-		
+
 		gpsWatchID = navigator.geolocation.watchPosition(updateOwnship, gpsError, options);
-	}	
+	}
+
+	if (localStorage.getItem("currentFlightPlan")) {
+		const loadFlighPlan = async () => {
+			await loadJsonFromServer(localStorage.getItem("currentFlightPlan"));
+		};
+
+		loadFlighPlan();
+	}
 }
 
-function initIcons()
-{
-	document.getElementById('center').innerHTML = svgShapeToSVG(shapes['center'],'#ffffff', '#000000', overlayButtonSize);
-	document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'],'#ffffff', '#000000', overlayButtonSize);
-	document.getElementById('open_fuel_plan').innerHTML = svgShapeToSVG(shapes['fuel'],'#ffffff', '#000000', mainButtonSize);
-	document.getElementById('open_flight_plan').innerHTML = svgShapeToSVG(shapes['takeoff'],'#ffffff', '#000000', mainButtonSize);
-	document.getElementById('direct_to').innerHTML = svgShapeToSVG(shapes['direct'],'#ffffff', '#000000', mainButtonSize);
-	document.getElementById('open_traffic').innerHTML = svgShapeToSVG(shapes['wifi'],'#ffffff', '#000000', mainButtonSize);
-	document.getElementById('open_menu').innerHTML = svgShapeToSVG(shapes['bars'],'#ffffff', '#000000', mainButtonSize);
-	document.getElementById('close_menu').innerHTML = svgShapeToSVG(shapes['cross'],'#ffffff', '#000000', mainButtonSize);
+function initIcons() {
+	document.getElementById('center').innerHTML = svgShapeToSVG(shapes['center'], '#ffffff', '#000000', overlayButtonSize);
+	document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'], '#ffffff', '#000000', overlayButtonSize);
+	document.getElementById('open_fuel_plan').innerHTML = svgShapeToSVG(shapes['fuel'], '#ffffff', '#000000', mainButtonSize);
+	document.getElementById('open_flight_plan').innerHTML = svgShapeToSVG(shapes['takeoff'], '#ffffff', '#000000', mainButtonSize);
+	document.getElementById('direct_to').innerHTML = svgShapeToSVG(shapes['direct'], '#ffffff', '#000000', mainButtonSize);
+	document.getElementById('open_traffic').innerHTML = svgShapeToSVG(shapes['wifi'], '#ffffff', '#000000', mainButtonSize);
+	document.getElementById('open_menu').innerHTML = svgShapeToSVG(shapes['bars'], '#ffffff', '#000000', mainButtonSize);
+	document.getElementById('close_menu').innerHTML = svgShapeToSVG(shapes['cross'], '#ffffff', '#000000', mainButtonSize);
 }
 
-function initMap()
-{
+function initMap() {
 	layersGroup = createBaseLayers();
-    layers = layersGroup.getLayers();
-	
+	layers = layersGroup.getLayers();
+
 	let routeLayer = new ol.layer.Vector({
-        name: 'routeLayer',
-        title: 'Route Layer',
-        type: 'overlay',
-        source: routeSource,
+		name: 'routeLayer',
+		title: 'Route Layer',
+		type: 'overlay',
+		source: routeSource,
 		updateWhileInteracting: true,
-    	updateWhileAnimating: true,
-        zIndex: 150,
+		updateWhileAnimating: true,
+		zIndex: 150,
 		declutter: false,
 		renderBuffer: 60,
-    });
-	
+	});
+
 	layers.push(routeLayer);
-	
+
 	ownshipLayer = new ol.layer.Vector({
 		name: 'ownshipLayer',
 		title: 'Ownship position',
 		type: 'overlay',
 		updateWhileInteracting: true,
-    	updateWhileAnimating: true,
+		updateWhileAnimating: true,
 		source: ownshipSource,
 		zIndex: 200,
 		declutter: false,
 		renderBuffer: 60,
 	});
-	
+
 	/*iconLayer = new ol.layer.Vector({
 		name: 'iconLayer',
 		type: 'overlay',
@@ -144,14 +151,13 @@ function initMap()
 	});
 	
 	layers.push(iconLayer);*/
-	
+
 	layers.push(ownshipLayer);
-	
+
 	ol_map_init();
 }
 
-function ol_map_init()
-{
+function ol_map_init() {
 	OLMap = new ol.Map({
 		target: 'map_canvas',
 		layers: layersGroup,
@@ -162,28 +168,25 @@ function ol_map_init()
 		}),
 		controls: [],
 		interactions: new ol.interaction.defaults({
-			altShiftDragRotate:false,
+			altShiftDragRotate: false,
 			pinchRotate: false,
 			doubleClickZoom: false,
 			dragPan: true,
 			dragZoom: false
 		}),
 		maxTilesLoading: 4,
-    });
+	});
 }
 
-function initTimers()
-{	
+function initTimers() {
 	timers.clock = window.setInterval(updateClock, 500);
 	updateClock();
-	
+
 	timers.navClock = window.setInterval(updateNavData, 1000);
 }
 
-function initEvents()
-{
-	OLMap.on('contextmenu', function(evt)
-	{
+function initEvents() {
+	OLMap.on('contextmenu', function (evt) {
 		evt.preventDefault();
 
 		const id = getNextID();
@@ -191,99 +194,110 @@ function initEvents()
 
 		sector.sectorName = "WP" + id;
 		sector.id = id;
-				
-		if(route.length > 0)
-		{
-			sector.distance = greatCircleDistance(route[route.length-1].latlong, sector.latlong);
-			sector.bearing = (calculateBearing(route[route.length-1].latlong, sector.latlong) - getMagVar(route[route.length-1].latlong, sector.latlong, true)) % 360;
+
+		if (route.length > 0) {
+			sector.distance = greatCircleDistance(route[route.length - 1].latlong, sector.latlong);
+			sector.bearing = (calculateBearing(route[route.length - 1].latlong, sector.latlong) - getMagVar(route[route.length - 1].latlong, sector.latlong, true)) % 360;
 			flightPlanValidated = false;
 			fuelPlanValidated = false;
 		}
-		
-		if(route.length == 0)
-		{
+
+		if (route.length == 0) {
 			departure = sector.sectorName;
 		}
-		
+
 		route.push(sector);
-		
-		updateRouteLayer();	
+
+		updateRouteLayer();
 		updateValidationUI();
 	});
-	
-	OLMap.on('pointerdrag', function(evt)
-	{
-		if(!panMode)
-		{
+
+	OLMap.on('pointerdrag', function (evt) {
+		if (!panMode) {
 			panMode = true;
 			jQuery('#center').css('display', 'flex');
 			stopAnimation();
 			updateOwnshipLayer();
 
-			if(northUp)
-			{
+			if (northUp) {
 				jQuery('#north_up').css('display', 'none');
 			}
 		}
 	});
 
-	if(testMode)
-	{
-		OLMap.on('click', function(evt)
-		{
+	if (testMode) {
+		OLMap.on('click', function (evt) {
 			updateOwnship(ol.proj.toLonLat(evt.coordinate));
 
 		});
 	}
-	
+
 	addEventListener("fullscreenchange", (evt) => {
-		if (!document.fullscreenElement) 
-		{
+		if (!document.fullscreenElement) {
 			jQuery('#toggle_fullscreen').text('Enter Fullscreen');
 			jQuery('#toggle_fullscreen').css('background', '#0059b3');
 			releaseWakeLock();
-		} 
+		}
 	});
-	
-	addEventListener('error', function(evt) 
-	{
+
+	addEventListener('error', function (evt) {
 		log('Error: [' + evt.lineno + '] ' + evt.message);
 	});
+
+	if (simMode) {
+		addEventListener("message", (event) => {
+			if (event.origin !== "coui://html_ui") {
+				return; // Ignore messages from unknown origins
+			}
+
+			updateOwnship(event.data);
+		});
+	}
 }
 
-function initButtons()
-{
+function initButtons() {
 	jQuery('#open_flight_plan').click(openFlightPlan);
 	jQuery('#open_fuel_plan').click(openFuelPlan);
 	jQuery('#open_traffic').click(openTraffic);
 	jQuery('#open_log').click(openLog);
 	jQuery('#open_menu').click(openMenu);
 	jQuery('#close_menu').click(closeMenu);
-	jQuery('#toggle_fullscreen').click(toggleFullScreen);
+	jQuery('#toggle_fullscreen').click(async () => {
+		await toggleFullScreen()
+	});
 	jQuery('#toggle_snap').click(toggleSnap);
 	jQuery('#remove_last_waypoint').click(removeLastWaypoint);
+	jQuery('#load_flight_plan').click(async () => {
+		await getAvailableFlightPlans();
+	});
+	jQuery('#save_flight_plan').click(async () => {
+		await saveJsonToServer()
+	});
 	jQuery('#clear_flight_plan').click(clearFlightPlan);
 	jQuery('#calc_flight_plan').click(calculateFlightPlan);
 	jQuery('#calc_fuel_plan').click(calculateFuelPlan);
 	jQuery('#center').click(centerMap);
 	jQuery('#north_up').click(toggleNorthUp);
-	
+
 	jQuery('.ui_button').css('background', blueColour);
 	jQuery('.menu_button').css('background', blueColour);
 	jQuery('#toggle_snap').css('background', greenColour);
+
+	/*jQuery('save_flight_plan').prop('disabled', true);
+	jQuery('clear_flight_plan').prop('disabled', true);
+	jQuery('#remove_last_waypoint').prop('disabled', true);*/
+
 }
 
-function updateClock()
-{
+function updateClock() {
 	date = new Date();
 	jQuery("#clock").text(getTwoDigitText(date.getUTCHours()) + ":" + getTwoDigitText(date.getUTCMinutes()) + ":" + getTwoDigitText(date.getUTCSeconds()));
 }
 
-function updateRouteLayer()
-{
+function updateRouteLayer() {
 	let flipDiag = true;
 	let routeFeatures = [];
-			
+
 	const lineStyle = new ol.style.Style({
 		stroke: new ol.style.Stroke({
 			color: routeColor,
@@ -291,7 +305,7 @@ function updateRouteLayer()
 		}),
 		zIndex: 150,
 	});
-	
+
 	const lineStyleActive = new ol.style.Style({
 		fill: labelColor,
 		stroke: new ol.style.Stroke({
@@ -300,9 +314,8 @@ function updateRouteLayer()
 		}),
 		zIndex: 150,
 	});
-	
-	for(let i = route.length - 1; i >= 0; --i)
-	{
+
+	for (let i = route.length - 1; i >= 0; --i) {
 		const pointStyle = new ol.style.Style({
 			text: new ol.style.Text({
 				text: route[i].sectorName,
@@ -322,35 +335,32 @@ function updateRouteLayer()
 			}),
 			zIndex: 150,
 		});
-		
+
 		const pointFeatures = new ol.Feature(new ol.geom.Point(route[i].endPoint));
 		pointFeatures.setStyle(pointStyle);
 		routeFeatures.push(pointFeatures);
 	}
-	
-	if(route.length > 1)
-	{
+
+	if (route.length > 1) {
 		const routePoints = route.map(a => a.endPoint);
 		const lineFeatures = new ol.Feature(new ol.geom.LineString(routePoints));
 		lineFeatures.setStyle(lineStyle);
 		routeFeatures.push(lineFeatures);
-		
+
 		const activeLineFeatures = new ol.Feature(new ol.geom.LineString([route[1].endPoint, route[0].endPoint]));
 		activeLineFeatures.setStyle(lineStyleActive);
 		routeFeatures.push(activeLineFeatures);
 	}
-	
+
 	routeSource.clear();
 
-	if(routeFeatures.length > 0)
-	{
+	if (routeFeatures.length > 0) {
 		routeSource.addFeatures(routeFeatures);
 	}
 }
 
-function updateOwnshipLayer()
-{	
-	
+function updateOwnshipLayer() {
+
 	ownshipSVG = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['cessna'], (airborneCount == 0) ? greenColour : 'grey', '#000000', 1));
 
 	ownshipStyle = new ol.style.Style({
@@ -371,239 +381,204 @@ function updateOwnshipLayer()
 
 }
 
-function updateNavData()
-{
+function updateNavData() {
 	let totalDistance = 0;
-	let eta = (airborneMode) ? [Math.floor(date.getUTCHours()), date.getUTCMinutes()] : ownship.etd;
+	let eta = (airborneMode) ? [date.getUTCHours(), date.getUTCMinutes() + (date.getUTCSeconds() / 60)] : ownship.etd;
 	let landingFuel = (fuelPlanValidated) ? ownship.totalFuel : null;
-	
+
 	jQuery('#landing_fuel').text('-.-');
 
-	if(ownship.gpsAccuracy && ownship.gpsAccuracy > 10)
-	{
+	if (ownship.gpsAccuracy && ownship.gpsAccuracy > 10) {
 		jQuery('#gps').css('display', 'flex');
-		document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], amberColour, '#000000', overlayButtonSize);
+		document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], amberColour, '#ffffff', overlayButtonSize);
 	}
-	else if(ownship.gpsAccuracy)
-	{
+	else if (ownship.gpsAccuracy) {
 		jQuery('#gps').css('display', 'none');
 	}
-	
-	if(route.length > 1)
-	{
-		if(!flightPlanValidated) eta = [];	
-		
+
+	if ((route.length > 2 && airborneMode) || (route.length > 1 && !airborneMode)) {
+		if (!flightPlanValidated) eta = [];
+
 		const track = (airborneMode) ? ownship.toGoDtk : route[1].bearing;
 		const ete = (airborneMode) ? ownship.ete : route[1].ete;
 		const routeFuel = (airborneMode) ? ownship.routeFuelReq : route[1].fuelRequired;
 		totalDistance += (airborneMode) ? ownship.toGoDis : route[1].distance;
-		
-		if(flightPlanValidated) eta = addTime(eta, ete);
-		if(fuelPlanValidated) landingFuel -= routeFuel;
-		
+
+		if (flightPlanValidated) eta = addTime(eta, ete);
+		if (fuelPlanValidated) landingFuel -= routeFuel;
+
 		jQuery('#dis').text(getDecimalText(totalDistance));
 		jQuery('#desired_trk').text(getThreeDigitText(track));
 		jQuery('#wp_dis').text(route[1].sectorName);
 		jQuery('#wp_ete').text(route[1].sectorName);
-		
-		for(let i = 2; i < route.length; ++i)
-		{
+
+		for (let i = 2; i < route.length; ++i) {
 			totalDistance += route[i].distance;
-			if(flightPlanValidated) eta = addTime(eta, route[i].ete);
-			if(fuelPlanValidated) landingFuel -= route[i].fuelRequired;
+			if (flightPlanValidated) eta = addTime(eta, route[i].ete);
+			if (fuelPlanValidated) landingFuel -= route[i].fuelRequired;
 		}
-		
+
 		jQuery('#total_dis').text(getDecimalText(totalDistance));
-		jQuery('#alt').text(getFourDigitText(route[1].altitude, false));		
+		jQuery('#alt').text(getFourDigitText(route[1].altitude, false));
 		jQuery('#eta').text(getTimeText(eta, false));
-		if(landingFuel > 0) jQuery('#landing_fuel').text(getDecimalText(landingFuel));
-		
-		if(ete[1] < 1)
-		{
+		if (landingFuel > 0) jQuery('#landing_fuel').text(getDecimalText(landingFuel));
+
+		if (ete[1] < 1) {
 			jQuery('#ete').text(getTwoDigitText(ete[1] * 60));
 		}
-		else
-		{
+		else {
 			jQuery('#ete').text(getTimeText(ete, false));
 		}
 	}
-	else if (route.length == 1 && airborneMode)
-	{
+	else if (route.length <= 2 && route.length > 0 && airborneMode) {
+		let sector = 0;
+
+		if (route.length == 2) sector = 1;
+
 		jQuery('#dis').text(getDecimalText(ownship.toGoDis));
 		jQuery('#total_dis').text(getDecimalText(ownship.toGoDis));
 		jQuery('#desired_trk').text(getThreeDigitText(ownship.toGoDtk));
-		jQuery('#wp_dis').text(route[0].sectorName);
-		jQuery('#wp_ete').text(route[0].sectorName);
+		jQuery('#wp_dis').text(route[sector].sectorName);
+		jQuery('#wp_ete').text(route[sector].sectorName);
 		jQuery('#eta').text(getTimeText(addTime(eta, ownship.ete), false));
-		if(landingFuel > 0) jQuery('#landing_fuel').text(getDecimalText(landingFuel - ownship.routeFuelReq));
-		
-		if(ownship.ete[1] < 1)
-		{
+		if (landingFuel > 0) jQuery('#landing_fuel').text(getDecimalText(landingFuel - ownship.routeFuelReq));
+
+		if (ownship.ete[1] < 1) {
 			jQuery('#ete').text(getTwoDigitText(ownship.ete[1] * 60));
 		}
-		else
-		{
+		else {
 			jQuery('#ete').text(getTimeText(ownship.ete, false));
 		}
 	}
 }
 
-async function toggleFullScreen() 
-{
-	if (!document.fullscreenElement) 
-	{
-		if (document.documentElement.requestFullscreen)
-		{
+async function toggleFullScreen() {
+	if (!document.fullscreenElement) {
+		if (document.documentElement.requestFullscreen) {
 			document.documentElement.requestFullscreen();
-		} 
-		else if (document.documentElement.mozRequestFullScreen) 
-		{ /* Firefox */
+		}
+		else if (document.documentElement.mozRequestFullScreen) { /* Firefox */
 			document.documentElement.mozRequestFullScreen();
-		} 
-		else if (document.documentElement.webkitRequestFullscreen) 
-		{ /* Safari */
+		}
+		else if (document.documentElement.webkitRequestFullscreen) { /* Safari */
 			document.documentElement.webkitRequestFullscreen();
-		} else if (document.documentElement.webkitRequestFullscreen) 
-		{ /* Safari */
+		} else if (document.documentElement.webkitRequestFullscreen) { /* Safari */
 			document.documentElement.webkitRequestFullscreen();
-		} 
-		else if (document.documentElement.msRequestFullscreen) 
-		{ /* IE11 */
+		}
+		else if (document.documentElement.msRequestFullscreen) { /* IE11 */
 			document.documentElement.msRequestFullscreen();
 		}
-		
+
 		jQuery('#toggle_fullscreen').css('background', greenColour);
 		jQuery('#toggle_fullscreen').text('Exit Fullscreen');
-		
-		if('wakeLock' in navigator)
-		{
+
+		if ('wakeLock' in navigator) {
 			await requestWakeLock();
 		}
-	} 
-	else 
-	{
-		if (document.exitFullscreen) 
-		{
-			document.exitFullscreen();	
+	}
+	else {
+		if (document.exitFullscreen) {
+			document.exitFullscreen();
 		}
-		else if (document.mozCancelFullScreen)
-		{
-			document.mozCancelFullScreen();	
+		else if (document.mozCancelFullScreen) {
+			document.mozCancelFullScreen();
 		}
-		else if (document.webkitExitFullscreen)
-		{
-			document.webkitExitFullscreen();	
+		else if (document.webkitExitFullscreen) {
+			document.webkitExitFullscreen();
 		}
-		else if (document.msExitFullscreen)
-		{
-			document.msExitFullscreen();	
+		else if (document.msExitFullscreen) {
+			document.msExitFullscreen();
 		}
-		
+
 		jQuery('#toggle_fullscreen').css('background', blueColour);
 		jQuery('#toggle_fullscreen').text('Enter Fullscreen');
-		
+
 		releaseWakeLock();
 	}
 }
 
-async function requestWakeLock()
-{
-	try 
-	{
-		wakeLock = navigator.wakeLock.request();
-	} 
-	catch (err) 
-	{
+async function requestWakeLock() {
+	try {
+		wakeLock = await navigator.wakeLock.request();
+	}
+	catch (err) {
 		log(err.name + ": " + err.message);
 	}
 }
 
-function releaseWakeLock()
-{
-	if (!wakeLock)
-	{
+function releaseWakeLock() {
+	if (!wakeLock) {
 		return;
 	}
-	try 
-	{
-		wakeLock.then(wls => wls.release())
+	try {
+		wakeLock.release()
 		wakeLock = null;
-	}  
-	catch (err) 
-	{
+	}
+	catch (err) {
 		log(err.name + ": " + err.message);
 	}
 }
 
-function openMenu()
-{
+function openMenu() {
 	jQuery('#menu_title').text('Menu');
 	jQuery('#menu_items').css('display', 'block');
 	jQuery('#menu').css('width', '100%');
 }
 
-function openFlightPlan()
-{
+function openFlightPlan() {
 	jQuery('#menu_title').text('Flight Plan');
 	jQuery('#flight_items').css('display', 'block');
 	jQuery('#menu').css('width', '100%');
-	
+
 	generateFlightPlanTable();
 }
 
-function openFuelPlan()
-{
+function openFuelPlan() {
 	jQuery('#menu_title').text('Fuel Plan');
 	jQuery('#fuel_items').css('display', 'block');
 	jQuery('#menu').css('width', '100%');
-	
+
 	generateFuelPlanTable();
 }
 
-function openTraffic()
-{
+function openTraffic() {
 	jQuery('#menu_title').text('ADS-B Traffic');
 	jQuery('#traffic_items').css('display', 'block');
 	jQuery('#menu').css('width', '100%');
 }
 
-function openLog()
-{
+function openLog() {
 	jQuery('#menu_title').text('Error Log');
 	jQuery('#log_items').css('display', 'block');
 	jQuery('#menu').css('width', '100%');
 	jQuery('#menu_items').css('display', 'none');
 }
 
-function closeMenu()
-{
+function closeMenu() {
 	jQuery('#menu_items').css('display', 'none');
 	jQuery('#flight_items').css('display', 'none');
 	jQuery('#fuel_items').css('display', 'none');
 	jQuery('#traffic_items').css('display', 'none');
 	jQuery('#log_items').css('display', 'none');
+	jQuery('#available_fp_items').css('display', 'none');
 	jQuery('#menu').css('width', '0');
 	jQuery('#menu_title').text('');
 }
 
-function toggleSnap()
-{
-	if(!snap)
-	{
+function toggleSnap() {
+	if (!snap) {
 		jQuery('#toggle_snap').css('background', greenColour);
 		jQuery('#toggle_snap').text('Waypoint Snap: On');
 		snap = true;
 	}
-	else
-	{
+	else {
 		jQuery('#toggle_snap').css('background', blueColour);
 		jQuery('#toggle_snap').text('Waypoint Snap: Off');
 		snap = false;
 	}
 }
 
-function resetUI()
-{
+function resetUI() {
 	jQuery('#dis').text('-.-');
 	jQuery('#desired_trk').text('---');
 	jQuery('#wp_dis').text('WP');
@@ -615,11 +590,9 @@ function resetUI()
 	jQuery('#landing_fuel').text('-.-');
 }
 
-function removeLastWaypoint()
-{	
-	if(route.length > 0)
-	{
-		route[route.length-1].setNull();
+function removeLastWaypoint() {
+	if (route.length > 0) {
+		route[route.length - 1].setNull();
 		route.pop();
 		updateRouteLayer();
 		generateFlightPlanTable();
@@ -627,41 +600,37 @@ function removeLastWaypoint()
 		calculateFlightPlan();
 		calculateFuelPlan();
 		closeMenu();
-		
-		if(route.length < 2)
-		{
+
+		if (route.length < 2) {
 			resetUI();
 			departure = null;
 		}
-		
-		if(route.length == 0)
-		{
+
+		if (route.length == 0) {
 			departure = null;
 		}
 	}
 }
 
-function clearFlightPlan()
-{
+function clearFlightPlan() {
 	resetUI();
-	
-	for(let i = 0; i < route.length; ++i)
-	{
+
+	for (let i = 0; i < route.length; ++i) {
 		route[i].setNull();
 	}
-	
+
 	route = [];
 	departure = null;
-	
+
 	updateRouteLayer();
 	updateValidationUI();
 	closeMenu();
+
+	localStorage.removeItem("currentFlightPlan");
 }
 
-function removeFirstWaypoint()
-{	
-	if(route.length > 1)
-	{
+function removeFirstWaypoint() {
+	if (route.length > 1) {
 		route[0].setNull();
 		route.shift();
 		updateRouteLayer();
@@ -669,41 +638,35 @@ function removeFirstWaypoint()
 	}
 }
 
-function findClosestPoint(latlong)
-{
-	if(!snap)
-	{
+function findClosestPoint(latlong) {
+	if (!snap) {
 		return latlong;
 	}
-	
+
 	return latlong;
 }
 
-function generateFlightPlanTable()
-{	
+function generateFlightPlanTable() {
 	jQuery('#departure').text('N/A');
 	jQuery('#destination').text('N/A');
-	
-	if(ownship.atd)
-	{
-		jQuery('#atd').css('display','inline-block');
+
+	if (ownship.atd) {
+		jQuery('#atd').css('display', 'inline-block');
 		jQuery('#atd').text(getTimeText(ownship.atd, false) + ' z');
-		jQuery('#etd_input').css('display','none');
+		jQuery('#etd_input').css('display', 'none');
 	}
 
 	let newBody = document.createElement('tbody');
 	let htmlTable = document.getElementById('flight_table');
 	let tbody = htmlTable.tBodies[0];
 	let eta = [];
-	
-	if(route.length > 0)
-	{
+
+	if (route.length > 0) {
 		jQuery('#departure').text(departure);
-		jQuery('#destination').text(route[route.length-1].sectorName);
+		jQuery('#destination').text(route[route.length - 1].sectorName);
 	}
 
-	if(route.length > 1)
-	{
+	if (route.length > 1) {
 		let totalDistance = 0;
 		let course = null;
 		let windDir = null;
@@ -714,29 +677,24 @@ function generateFlightPlanTable()
 		let ete = null;
 		let newRow = null;
 		let rowConstruct = null;
-		
-		for(let i = 1; i < route.length; ++i)
-		{	
+
+		for (let i = 1; i < route.length; ++i) {
 			newRow = document.createElement('tr');
-			if(i == 1) newRow.id = "activeRow"; 	
+			if (i == 1) newRow.id = "activeRow";
 			totalDistance += route[i].distance;
-					
-			if(flightPlanValidated)
-			{
-				if(eta.length != 2 && !airborneMode)
-				{
+
+			if (flightPlanValidated) {
+				if (eta.length != 2 && !airborneMode) {
 					eta = addTime(ownship.etd, route[i].ete);
 				}
-				else if(eta.length != 2)
-				{
-					eta = addTime([Math.floor(date.getUTCHours()), date.getUTCMinutes()], ownship.ete);
+				else if (eta.length != 2) {
+					eta = addTime([date.getUTCHours(), date.getUTCMinutes() + (date.getUTCSeconds() / 60)], ownship.ete);
 				}
-				else
-				{
+				else {
 					eta = addTime(route[i].ete, eta);
 				}
 			}
-			
+
 			course = '<td class="mid_font">' + getThreeDigitText(route[i].bearing) + '</td>';
 			windDir = '<td><input type="number"  class="mid_font" id="' + route[i].id + '_wind_dir" value="' + getThreeDigitText(route[i].windDir) + '" min="1" max="360"></td>';
 			windSpd = '<td><input type="number"  class="mid_font" id="' + route[i].id + '_wind_spd" value="' + getRoundText(route[i].windSpd) + '" min="0"></td>';
@@ -744,11 +702,10 @@ function generateFlightPlanTable()
 			groundSpeed = '<td class="mid_font">' + getRoundText(route[i].groundSpeed) + '</td>';
 			distance = '<td class="mid_font">' + getDecimalText(route[i].distance) + '</td>';
 			ete = '<td class="mid_font">' + getTimeText(route[i].ete, true) + '</td>';
-			
-			if(i == 1 && airborneMode)
-			{
+
+			if (i == 1 && airborneMode) {
 				totalDistance = ownship.toGoDis;
-				
+
 				course = '<td class="mid_font">' + getThreeDigitText(ownship.toGoDtk) + '</td>';
 				windDir = '<td class="mid_font" id="' + route[i].id + '_wind_dir">' + getThreeDigitText(route[i].windDir) + '</td>';
 				windSpd = '<td class="mid_font" id="' + route[i].id + '_wind_spd">' + getRoundText(route[i].windSpd) + '</td>';
@@ -757,7 +714,7 @@ function generateFlightPlanTable()
 				distance = '<td class="mid_font">' + getDecimalText(ownship.toGoDis) + '</td>';
 				ete = '<td class="mid_font">' + getTimeText(ownship.ete, true) + '</td>';
 			}
-			
+
 			rowConstruct = '<td class="mid_font">' + route[i].sectorName + '</td>';
 			rowConstruct += '<td><input type="number"  class="mid_font" id="' + route[i].id + '_alt" value="' + getFourDigitText(route[i].altitude, true) + '" step="100" min="0"></td>';
 			rowConstruct += '<td><input type="number"  class="mid_font" id="' + route[i].id + '_ias" value="' + getRoundText(route[i].ias) + '" min="0"></td>';
@@ -777,59 +734,53 @@ function generateFlightPlanTable()
 
 	htmlTable.replaceChild(newBody, tbody);
 	tbody.remove();
-	
-	if(airborneMode) jQuery('#activeRow').css('background', darkGreenColour);
+
+	if (airborneMode) jQuery('#activeRow').css('background', darkGreenColour);
 	jQuery('#fp_eta').text(getTimeText(eta, false));
 }
 
-function calculateFlightPlan()
-{
+function calculateFlightPlan() {
 	let table_alt = null;
 	let table_ias = null;
 	let table_wind_dir = null;
 	let table_wind_spd = null;
 	let table_heading = null;
-	
+
 	flightPlanValidated = true;
-	
+
 	ownship.etd = [Number(document.getElementById('etd_hours').value), Number(document.getElementById('etd_minutes').value)];
-	
-	for(let i = 1; i < route.length; ++i)
-	{
+
+	for (let i = 1; i < route.length; ++i) {
 		table_alt = document.getElementById(route[i].id + '_alt').value;
 		table_ias = document.getElementById(route[i].id + '_ias').value;
-		
+
 		route[i].altitude = (table_alt == "") ? null : Number(table_alt);
 		route[i].ias = (table_ias == "") ? null : Number(table_ias);
-		
-		if(i == 1 && airborneMode)
-		{
+
+		if (i == 1 && airborneMode) {
 			table_heading = document.getElementById(route[i].id + '_hdg').value;
 			route[i].heading = (table_heading == "") ? null : Number(table_heading);
 			route[i].calculateWind(ownship.toGoDtk, ownship.toGs);
 		}
-		else
-		{
+		else {
 			table_wind_dir = document.getElementById(route[i].id + '_wind_dir').value;
 			table_wind_spd = document.getElementById(route[i].id + '_wind_spd').value;
-			
+
 			route[i].windDir = (table_wind_dir == "") ? null : Number(table_wind_dir);
 			route[i].windSpd = (table_wind_spd == "") ? null : Number(table_wind_spd);
 			route[i].calculateWindCorrection();
 		}
-		
-		if(table_alt == "" || table_ias == "" || table_wind_dir == "" || table_wind_spd == "")
-		{
+
+		if (table_alt == "" || table_ias == "" || table_wind_dir == "" || table_wind_spd == "") {
 			flightPlanValidated = false;
 		}
 	}
-	
+
 	generateFlightPlanTable();
 	updateValidationUI();
 }
 
-function generateFuelPlanTable()
-{	
+function generateFuelPlanTable() {
 	let newBody = document.createElement('tbody');
 	let htmlTable = document.getElementById('fuel_table');
 	let tbody = htmlTable.tBodies[0];
@@ -837,8 +788,7 @@ function generateFuelPlanTable()
 
 	jQuery('#total_fuel').prop("value", getDecimalText(ownship.totalFuel));
 
-	if(route.length > 1)
-	{
+	if (route.length > 1) {
 		let totalFuelRemaining = ownship.totalFuel;
 		let ete = null;
 		let fuelRequiredField = null;
@@ -846,23 +796,20 @@ function generateFuelPlanTable()
 		let rowConstruct = null;
 		requiredFuel = 0;
 
-		for(let i = 1; i < route.length; ++i)
-		{
+		for (let i = 1; i < route.length; ++i) {
 			newRow = document.createElement('tr');
-			if(i == 1) newRow.id = "activeRowFuel"; 
+			if (i == 1) newRow.id = "activeRowFuel";
 
 			ete = '<td class="mid_font">' + getTimeText(route[i].ete, true) + '</td>';
 			fuelRequiredField = '<td class="mid_font">' + getDecimalText(route[i].fuelRequired) + '</td>';
-			
-			if(i == 1 && airborneMode)
-			{
+
+			if (i == 1 && airborneMode) {
 				ete = '<td class="mid_font">' + getTimeText(ownship.ete, true) + '</td>';
 				fuelRequiredField = '<td class="mid_font">' + getDecimalText(ownship.routeFuelReq) + '</td>';
 				totalFuelRemaining -= ownship.routeFuelReq;
 				requiredFuel += ownship.routeFuelReq;
 			}
-			else
-			{
+			else {
 				totalFuelRemaining -= route[i].fuelRequired;
 				requiredFuel += route[i].fuelRequired;
 			}
@@ -877,8 +824,7 @@ function generateFuelPlanTable()
 			newBody.appendChild(newRow);
 		}
 
-		if(ownship.holdFuel)
-		{
+		if (ownship.holdFuel) {
 			totalFuelRemaining -= ownship.holdFuel;
 			requiredFuel += ownship.holdFuel;
 		}
@@ -891,9 +837,8 @@ function generateFuelPlanTable()
 		newRow.innerHTML = rowConstruct;
 		newBody.appendChild(newRow);
 
-		if(ownship.reserveFuel)
-		{ 
-			
+		if (ownship.reserveFuel) {
+
 			totalFuelRemaining -= ownship.reserveFuel;
 			requiredFuel += ownship.reserveFuel;
 		}
@@ -908,302 +853,258 @@ function generateFuelPlanTable()
 
 	}
 
-	if(fuelPlanValidated && requiredFuel)
-	{
+	if (fuelPlanValidated && requiredFuel) {
 		jQuery('#required_fuel').text(getDecimalText(requiredFuel));
-	} 
-	else
-	{
+	}
+	else {
 		jQuery('#required_fuel').text('-.-');
 	}
-	
+
 	htmlTable.replaceChild(newBody, tbody);
 	tbody.remove();
 
-	if(airborneMode) jQuery('#activeRowFuel').css('background', darkGreenColour);
+	if (airborneMode) jQuery('#activeRowFuel').css('background', darkGreenColour);
 }
 
-function calculateFuelPlan()
-{
+function calculateFuelPlan() {
 	let table_fuel_flow = null;
-	
+
 	fuelPlanValidated = true;
-	
+
 	ownship.totalFuel = Number(document.getElementById('total_fuel').value);
 
-	if(route.length > 1)
-	{
+	if (route.length > 1) {
 		let reserveFuelField = document.getElementById('reserve_fuel').value;
 		ownship.reserveFuel = (reserveFuelField == "") ? null : Number(reserveFuelField);
 		ownship.holdFuel = Number(document.getElementById('hold_fuel').value);
 	}
-	
-	for(let i = 1; i < route.length; ++i)
-	{
+
+	for (let i = 1; i < route.length; ++i) {
 		table_fuel_flow = document.getElementById(route[i].id + '_fuel_flow').value;
 		route[i].fuelFlow = (table_fuel_flow == "") ? null : Number(table_fuel_flow);
 
-		if(route[i].fuelFlow == null || !ownship.reserveFuel || ownship.reserveFuel == 0 || (!airborneMode && route[i].ete.length == 0)) fuelPlanValidated = false;
+		if (route[i].fuelFlow == null || !ownship.reserveFuel || ownship.reserveFuel == 0 || (!airborneMode && route[i].ete.length == 0)) fuelPlanValidated = false;
 
-		if(i == 1 && airborneMode) ownship.routeFuelReq = route[i].fuelFlow * (ownship.ete[0] + (ownship.ete[1] / 60));
+		if (i == 1 && airborneMode) ownship.routeFuelReq = route[i].fuelFlow * (ownship.ete[0] + (ownship.ete[1] / 60));
 
-		if(route[i].ete.length != 0) route[i].fuelRequired = (route[i].ete[0] + (route[i].ete[1] / 60)) * route[i].fuelFlow;
+		if (route[i].ete.length != 0) route[i].fuelRequired = (route[i].ete[0] + (route[i].ete[1] / 60)) * route[i].fuelFlow;
 	}
-	
+
 	generateFuelPlanTable();
 	updateValidationUI();
 }
 
-function updateValidationUI()
-{
+function updateValidationUI() {
 	let flightPlanColour = (flightPlanValidated) ? greenColour : amberColour;
 	let fuelPlanColour = (fuelPlanValidated) ? greenColour : amberColour;
-	
-	if(route.length < 2)
-	{
+
+	if (route.length < 2) {
 		flightPlanColour = blueColour;
 		fuelPlanColour = blueColour;
 	}
-		
+
 	jQuery('#open_flight_plan').css('background', flightPlanColour);
 	jQuery('#open_fuel_plan').css('background', fuelPlanColour);
 }
 
-function getTwoDigitText(value)
-{
+function getTwoDigitText(value) {
 	return (value == null) ? "" : ('0' + Math.round(value)).slice(-2);
 }
 
-function getThreeDigitText(value)
-{
+function getThreeDigitText(value) {
 	return (value == null) ? "" : ('00' + Math.round(value)).slice(-3);
 }
 
-function getFourDigitText(value, nullString)
-{
-	if(value == null && nullString)
-	{
+function getFourDigitText(value, nullString) {
+	if (value == null && nullString) {
 		return "";
 	}
-	else if(value == null)
-	{
+	else if (value == null) {
 		return "----";
 	}
-	
+
 	return ('000' + Math.round(value)).slice(-4);
 }
 
-function getTimeText(value, nullString)
-{
-	if(value.length == 0 && nullString)
-	{
+function getTimeText(value, nullString) {
+	if (value.length == 0 && nullString) {
 		return "";
 	}
-	else if(value.length == 0)
-	{
+	else if (value.length == 0) {
 		return "--:--";
 	}
-	
+
 	return ('0' + value[0]).slice(-2) + ":" + ('0' + Math.floor(value[1])).slice(-2);
 }
 
-function getRoundText(value)
-{
+function getRoundText(value) {
 	return (value == null || isNaN(value)) ? "" : Math.round(value);
 }
 
-function getDecimalText(value)
-{
-	return (value == null) ? "" : (Math.round(value * 10)/ 10).toFixed(1);
+function getDecimalText(value) {
+	return (value == null) ? "" : (Math.round(value * 10) / 10).toFixed(1);
 }
 
-function toggleNorthUp()
-{
+function toggleNorthUp() {
 	northUp = !northUp;
-	
-	if(northUp)
-	{ 
-		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['compass'],'#ffffff', '#000000', overlayButtonSize);
+
+	if (northUp) {
+		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['compass'], '#ffffff', '#000000', overlayButtonSize);
 		jQuery('#north_up svg').css('transform', 'rotate(-45deg)');
+		animateView(500);
 	}
-	else
-	{
-		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'],'#ffffff', '#000000', overlayButtonSize);
+	else {
+		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'], '#ffffff', '#000000', overlayButtonSize);
+		animateView(500);
 	}
 
-	if(ownship.track && panMode && northUp)
-	{
+	if (ownship.track && panMode && northUp) {
 		OLMap.getView().setRotation(0);
 		updateOwnshipLayer();
 		jQuery('#north_up').css('display', 'none');
 	}
 }
 
-function updateOwnship(position)
-{	
-	if(position.coords != null)
-	{
+function updateOwnship(position) {
+	if (position.coords != null) {
 		ownship.position = [position.coords.longitude, position.coords.latitude];
 	}
-	else
-	{
+	else {
 		ownship.position = position;
 	}
-	
-	let localDate =  new Date();
+
+	let localDate = new Date();
 	ownship.fixTime = localDate.getTime();
-	
-	if(ownship.lastPosition != null)
-	{
+
+	if (ownship.lastPosition != null) {
 		let deltaTime = ownship.fixTime - ownship.lastFixTime;
 		ownship.gs = greatCircleDistance(ownship.lastPosition, ownship.position) * 3600000 / deltaTime;
 		ownship.track = calculateBearing(ownship.lastPosition, ownship.position);
 		ownship.magVar = getMagVar(ownship.lastPosition, ownship.position, false);
 		ownship.mapPosition = ol.proj.fromLonLat(ownship.position);
-		
-		if(position.coords) ownship.gpsAccuracy = position.coords.accuracy;
-		
-		if(airborneCount == 0 && !airborneMode)
-		{
+
+		if (position.coords) ownship.gpsAccuracy = position.coords.accuracy;
+
+		if (airborneCount == 0 && !airborneMode) {
 			panMode = false;
 			northUp = false;
 			airborneMode = true;
-			
+
 			jQuery('#north_up').css('display', 'flex');
 			startAnimation();
 		}
 
-		if(ownship.gs > 30 && airborneCount > 0) 
-		{
+		if (ownship.gs > 30 && airborneCount > 0) {
 			airborneCount--;
 		}
-		
+
 		jQuery('#gs').text(getRoundText(ownship.gs));
 		jQuery('#trk').text(getThreeDigitText((ownship.track - ownship.magVar) % 360));
-		
-		if(!panMode) 
-		{
-			animateView(ol.proj.fromLonLat([ownship.position[0], ownship.position[1]]), deltaTime, true);
+
+		if (!panMode) {
+			animateView(deltaTime);
 		}
-		else
-		{
+		else {
 			updateOwnshipLayer();
 		}
-		
-		if(airborneMode && !ownship.atd)
-		{
-			ownship.atd = [Math.floor(localDate.getUTCHours()), localDate.getUTCMinutes()];
+
+		if (airborneMode && !ownship.atd) {
+			ownship.atd = [localDate.getUTCHours(), localDate.getUTCMinutes() + (localDate.getUTCSeconds() / 60)];
 		}
-		
-		if(airborneMode && route.length > 0)
-		{
+
+		if (airborneMode && route.length > 0) {
 			let point = (route.length == 1) ? 0 : 1;
-			
+
 			ownship.toGoDis = greatCircleDistance(ownship.position, route[point].latlong);
 			ownship.toGoDtk = (calculateBearing(ownship.position, route[point].latlong) - getMagVar(ownship.position, route[point].latlong, true)) % 360;
 			ownship.toGs = Math.max(10, ownship.gs * Math.cos(toRadians(ownship.track - ownship.magVar - ownship.toGoDtk)));
 
 			getClosingTime();
 
-			if(route[point].fuelFlow)
-			{
+			if (route[point].fuelFlow) {
 				ownship.routeFuelReq = route[point].fuelFlow * (ownship.ete[0] + (ownship.ete[1] / 60));
 				ownship.totalFuel -= route[point].fuelFlow * deltaTime / 3600000;
 			}
 
 			const headingDiff = Math.abs(ownship.toGoDtk - ownship.track) % 360;
 
-			if(((headingDiff > 180) ? 360 - headingDiff : headingDiff) < 90 && !canRemoveWaypoint)
-			{
+			if (((headingDiff > 180) ? 360 - headingDiff : headingDiff) < 90 && !canRemoveWaypoint) {
 				canRemoveWaypoint = true;
 			}
 
-			if(ownship.toGoDis < 0.1 || (ownship.toGoDis < 3.0 && ((headingDiff > 180) ? 360 - headingDiff : headingDiff) > 90 && canRemoveWaypoint))
-			{
+			if (ownship.toGoDis < 0.1 || (ownship.toGoDis < 3.0 && ((headingDiff > 180) ? 360 - headingDiff : headingDiff) > 90 && canRemoveWaypoint)) {
 				removeFirstWaypoint();
 				canRemoveWaypoint = false;
 			}
-			
+
 			ownship.prevToGoDis = ownship.toGoDis;
 		}
 	}
-	
+
 	ownship.lastPosition = ownship.position;
 	ownship.lastFixTime = ownship.fixTime;
 }
 
-function gpsError(error)
-{
+function gpsError(error) {
 	navigator.geolocation.clearWatch(gpsWatchID);
 	log('Warning: ' + error.message);
 	jQuery('#gps').css('display', 'flex');
-	document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], redColour, '#000000', overlayButtonSize);
+	document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], redColour, '#ffffff', overlayButtonSize);
 	ownship.gpsAccuracy = null;
 }
 
-function centerMap()
-{
+function centerMap() {
 	panMode = false;
 	jQuery('#center').css('display', 'none');
 	jQuery('#north_up').css('display', 'flex');
-	
-	if(ownship.position)
-	{
-		startAnimation();
-		animateView(ol.proj.fromLonLat([ownship.position[0], ownship.position[1]]), 500, false);
-	}
+
+	startAnimation();
+	animateView(500);
+
 }
 
-function getClosingTime()
-{
-	if(!ownship.toGoDtk && !ownship.toGoDis && !ownship.track)
-	{
+function getClosingTime() {
+	if (!ownship.toGoDtk && !ownship.toGoDis && !ownship.track) {
 		ownship.ete = [];
 		return;
 	}
-	
+
 	const hours = ownship.toGoDis / ownship.toGs;
-	
+
 	ownship.ete = [Math.floor(hours), (hours - Math.floor(hours)) * 60];
 }
 
-function addTime(time1, time2)
-{
+function addTime(time1, time2) {
 	let minutes = time1[1] + time2[1];
 	let hours = Math.floor(minutes / 60);
-	
+
 	minutes -= hours * 60;
 	hours += time1[0] + time2[0];
-	
+
 	return [hours % 24, minutes];
 }
 
-function log(string)
-{
+function log(string) {
 	let log = document.getElementById('log_items');
 	let entry = document.createElement('div');
 	entry.innerHTML = string;
 	log.prepend(entry);
 }
 
-function animateView(newPoint, duration, show) 
-{
-	const view = OLMap.getView();
-	view.cancelAnimations();
-	
-	view.animate(
+function animateView(duration) {
+	if (!ownship.position && !ownship.track) return;
+
+	OLMap.getView().animate(
 		{
-			center: newPoint,
+			center: ol.proj.fromLonLat([ownship.position[0], ownship.position[1]]),
 			rotation: (northUp) ? 0 : toRadians(-ownship.track),
 			duration: duration,
 		},
 	);
 }
 
-function onPostrender(event) 
-{
-	if(ownship.mapPosition)
-	{
+function onPostrender(event) {
+	if (ownship.mapPosition) {
 		ownshipStyle = new ol.style.Style({
 			image: new ol.style.Icon({
 				scale: 2.5,
@@ -1216,38 +1117,159 @@ function onPostrender(event)
 
 		viewPoint.setCoordinates(ownship.mapPosition);
 		let vectorContext = ol.getVectorContext(event);
-		vectorContext.setStyle(ownshipStyle);
+
+		if (simMode) {
+			ownshipIcon.setStyle(ownshipStyle);
+		}
+		else {
+			vectorContext.setStyle(ownshipStyle);
+		}
+
 		vectorContext.drawGeometry(viewPoint);
 	}
 }
 
-function startAnimation()
-{
-	if(animate) return;
-	
-	ownshipIcon.setGeometry(null);
+function startAnimation() {
+	if (animate) return;
+
+	if (!simMode) ownshipIcon.setGeometry(null);
 	ownshipLayer.on('postrender', onPostrender);
 	animate = true;
 }
 
-function stopAnimation()
-{
-	if(!animate) return;
+function stopAnimation() {
+	if (!animate) return;
 
 	ownshipLayer.un('postrender', onPostrender);
 	animate = false;
 }
 
-function getNextID()
-{
-	let id = 0;
+function getNextID() {
+	let id = -1;
 
-	for(let i = 0; i < route.length; ++i)
-	{
-		if(route[i].id > id) id = route[i].id;
+	for (let i = 0; i < route.length; ++i) {
+		if (route[i].id > id) id = route[i].id;
 	}
 
 	return id + 1;
+}
+
+async function saveJsonToServer() {
+	try {
+		let fileName = null;
+
+		for (let i = 0; i < route.length; i++) {
+			if (i == 0) {
+				fileName = route[i].sectorName;
+			}
+			else {
+				fileName += "-" + route[i].sectorName;
+			}
+		}
+
+		if (!fileName) return;
+
+		const response = await fetch(flightPlanData + '?filename=' + fileName, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({ ownship, route }),
+		});
+
+		if (response.ok) {
+			localStorage.setItem("currentFlightPlan", fileName);
+		}
+		else {
+			log('Error saving data: ' + response.statusText);
+		}
+	}
+	catch (err) {
+		log('Error during fetch: ' + err.message);
+	}
+
+	closeMenu();
+}
+
+async function loadJsonFromServer(fileName) {
+	try {
+		const response = await fetch(flightPlanData + '?filename=flight_plans/' + fileName);
+
+		if (response.ok) {
+			const result = await response.json(); // Parse JSON response
+			ownship = result.ownship;
+			route = [];
+
+			for (let i = 0; i < result.route.length; ++i) {
+				let newSector = new SectorObject(result.route[i].endPoint);
+				newSector.clone(result.route[i]);
+				route.push(newSector);
+			}
+
+			generateFlightPlanTable();
+			generateFuelPlanTable();
+			calculateFlightPlan();
+			calculateFuelPlan();
+			updateRouteLayer();
+
+			localStorage.setItem("currentFlightPlan", fileName);
+		}
+		else {
+			log('Error loading data: ' + response.statusText);
+		}
+	}
+	catch (err) {
+		log('Error during fetch: ' + err.message);
+	}
+
+	closeMenu();
+}
+
+async function getJsonFilesList() {
+	try {
+		const response = await fetch(flightPlanData);
+
+		if (response.ok) {
+			return await response.json(); // Parse JSON response
+		}
+		else {
+			log('Error loading data: ' + response.statusText);
+		}
+	}
+	catch (err) {
+		log('Error during fetch: ' + err.message);
+	}
+}
+
+async function getAvailableFlightPlans() {
+	jQuery('#menu_title').text('Available Flight Plans');
+	jQuery('#available_fp_items').css('display', 'block');
+	jQuery('#menu_items').css('display', 'none');
+
+	let jsonFles = await getJsonFilesList();
+
+	let newBody = document.createElement('div');
+	let htmlBody = document.getElementById('available_fp_items');
+	htmlBody.innerHTML = "";
+
+	if (jsonFles) {
+		for (let i = 0; i < jsonFles.length; i++) {
+			const newButton = document.createElement('button');
+			newButton.innerText = jsonFles[i];
+			newButton.id = jsonFles[i];
+			newButton.className = "menu_button";
+			newButton.style = "background: " + blueColour;
+			newButton.addEventListener('click', async function () {
+				await loadJsonFromServer(jsonFles[i]);
+			});
+			newBody.appendChild(newButton);
+		}
+	}
+	else {
+		newBody.innerHTML = "No flight plans available.";
+	}
+
+	htmlBody.appendChild(newBody);
 }
 
 initialize();
