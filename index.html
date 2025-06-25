@@ -43,7 +43,10 @@
 					<button class="ui_button_transparent" id="north_up"></button>
 					<button class="ui_button_transparent" id="center"></button>
 				</div>
-				<button class="ui_button_transparent" id="gps"></button>
+				<div id="right_ui">
+					<button class="ui_button_transparent" id="maps"></button>
+					<button class="ui_button_transparent" id="gps"></button>
+				</div>
 			</div>
 		</div>
 
@@ -90,16 +93,26 @@
 			</div>
 		</div>
 		<div id="menu" class="side_menu">
-			<div id="close_ui"><button class="ui_button" id="close_menu"></button></div>
+			<div><button class="ui_button" id="close_menu"></button></div>
 			<div class="big_font" id="menu_title"></div>
 			<div id="menu_items">
-				<div><button class="menu_button" id="toggle_fullscreen">Enter Fullscreen</button></div>
-				<div><button class="menu_button" id="toggle_snap">Waypoint Snap: On</button></div>
-				<div><button class="menu_button" id="remove_last_waypoint">Remove Last Waypoint</button></div><br>
-				<div><button class="menu_button" id="load_flight_plan">Load Flight Plan</button></div>
-				<div><button class="menu_button" id="save_flight_plan">Save Flight Plan</button></div>
-				<div><button class="menu_button" id="clear_flight_plan">Clear Flight Plan</button></div><br>
-				<div><button class="menu_button" id="open_log">Error Log</button></div>
+				<div id="menu_tabs">
+					<div><button class="tab_button" id="show_menu_setting_buttons"></button></div>
+					<div><button class="tab_button" id="show_menu_flight_plan_buttons"></button></div>
+				</div>
+				<div id="menu_setting_buttons" class="menu_area">
+					<div><button class="menu_button" id="toggle_fullscreen">Enter Fullscreen</button></div>
+					<div><button class="menu_button" id="toggle_snap">Waypoint Snap: On</button></div>
+					<div><button class="menu_button" id="show_log">Error Log</button></div><br>
+					<div id="zoom_ui"><button class="ui_button" id="reduce_ui_size"></button><div id="zoom_text"><span class="mid_font">UI Zoom: </span><span class="mid_font" id="zoom">1.0</span></div><button class="ui_button" id="increase_ui_size"></button></div>
+				</div>
+				<div id="menu_flight_plan_buttons" class="menu_area">
+					<div><button class="menu_button" id="remove_last_waypoint">Remove Last Waypoint</button></div><br>
+					<div><button class="menu_button" id="load_flight_plan">Load Flight Plan</button></div>
+					<div><button class="menu_button" id="save_flight_plan">Save Flight Plan</button></div>
+					<div><button class="menu_button" id="reset_flight_plan">Reset Flight Plan</button></div><br>
+					<div><button class="menu_button" id="clear_flight_plan">Clear Flight Plan</button></div>
+				</div>			
 			</div>
 			<div id="flight_items">
 				<div class="menu_header">
@@ -188,7 +201,6 @@
 			document.write('<script src="libs/ol-custom-6.15.1.js" type="text/javascript"></scr' + 'ipt>');
 		} 
 	</script>
-
 
 	<script src="libs/jquery-3.7.1.min.js"></script>
 	<script src="libs/geomag2020.js"></script>

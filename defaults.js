@@ -9,7 +9,8 @@ const CenterLon = 151.834;
 const zoomLvl = 11.42;
 
 //Styling
-const labelFont = 'bold 1em tahoma';
+const labelFont = 'Arial';
+const labelSize =  1;
 const labelColor = new ol.style.Fill({ color: 'white' });
 const bgFill = new ol.style.Fill({ color: 'rgba(0, 0, 0, 0.6)' });
 const routeWidth = 5;
@@ -17,8 +18,10 @@ const activeRouteWidth = 7;
 const routeColor = 'black';
 const activeRouteColor = '#FD3DB5';
 const pointColor = new ol.style.Fill({ color: routeColor });
-const pointStroke = new ol.style.Stroke({ color: 'white', width: 2 });
+const pointStroke = 2; //new ol.style.Stroke({ color: 'white', width: 2 });
 const pointRadius = 6;
+const backgroundColour = '#262626';
+const foregroundColour = '#313131';
 const blueColour = '#0066cc';
 const greenColour = '#00cc22';
 const amberColour = '#cc9900';

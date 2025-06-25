@@ -24,6 +24,7 @@ let ownshipShape = null;
 let airborneCount = 3;
 let airborneMode = null;
 let canRemoveWaypoint = null;
+let globalScale = 1;
 
 let testMode = false;
 let simMode = false;
@@ -47,6 +48,13 @@ function initialize() {
 	if (params.get("sim")) {
 		simMode = true;
 	}
+
+	if (localStorage.getItem("globalScale")) {
+		globalScale = Number(localStorage.getItem("globalScale"));
+	}
+
+	document.documentElement.style.setProperty("--SCALE", globalScale);
+	jQuery('#zoom').text(getDecimalText(globalScale));
 
 	initMap();
 	initEvents();
@@ -75,7 +83,11 @@ function initialize() {
 	ownship.totalFuel = 0;
 	ownship.routeFuelReq = null;
 	ownship.reserveFuel = null;
-	ownship.holdFuel = 0;
+	ownship.reserveFuelFlow = null;
+	ownship.reserveDuration = 30;
+	ownship.holdFuel = null;
+	ownship.holdFuelFlow = 0;
+	ownship.holdDuration = 0;
 
 	airborneMode = false;
 	canRemoveWaypoint = false;
@@ -90,24 +102,23 @@ function initialize() {
 		gpsWatchID = navigator.geolocation.watchPosition(updateOwnship, gpsError, options);
 	}
 
-	if (localStorage.getItem("currentFlightPlan")) {
-		const loadFlighPlan = async () => {
-			await loadJsonFromServer(localStorage.getItem("currentFlightPlan"));
-		};
-
-		loadFlighPlan();
-	}
+	if (localStorage.getItem("currentFlightPlan")) loadJsonFromServer(localStorage.getItem("currentFlightPlan"));
 }
 
 function initIcons() {
-	document.getElementById('center').innerHTML = svgShapeToSVG(shapes['center'], '#ffffff', '#000000', overlayButtonSize);
-	document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'], '#ffffff', '#000000', overlayButtonSize);
-	document.getElementById('open_fuel_plan').innerHTML = svgShapeToSVG(shapes['fuel'], '#ffffff', '#000000', mainButtonSize);
-	document.getElementById('open_flight_plan').innerHTML = svgShapeToSVG(shapes['takeoff'], '#ffffff', '#000000', mainButtonSize);
-	document.getElementById('direct_to').innerHTML = svgShapeToSVG(shapes['direct'], '#ffffff', '#000000', mainButtonSize);
-	document.getElementById('open_traffic').innerHTML = svgShapeToSVG(shapes['wifi'], '#ffffff', '#000000', mainButtonSize);
-	document.getElementById('open_menu').innerHTML = svgShapeToSVG(shapes['bars'], '#ffffff', '#000000', mainButtonSize);
-	document.getElementById('close_menu').innerHTML = svgShapeToSVG(shapes['cross'], '#ffffff', '#000000', mainButtonSize);
+	document.getElementById('center').innerHTML = svgShapeToSVG(shapes['center'], '#ffffff', '#000000', overlayButtonSize * globalScale);
+	document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'], '#ffffff', '#000000', overlayButtonSize * globalScale);
+	document.getElementById('maps').innerHTML = svgShapeToSVG(shapes['map'], '#ffffff', '#000000', overlayButtonSize * globalScale);
+	document.getElementById('open_fuel_plan').innerHTML = svgShapeToSVG(shapes['fuel'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('open_flight_plan').innerHTML = svgShapeToSVG(shapes['takeoff'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('direct_to').innerHTML = svgShapeToSVG(shapes['direct'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('open_traffic').innerHTML = svgShapeToSVG(shapes['wifi'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('open_menu').innerHTML = svgShapeToSVG(shapes['bars'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('close_menu').innerHTML = svgShapeToSVG(shapes['cross'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('show_menu_setting_buttons').innerHTML = svgShapeToSVG(shapes['gear'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('show_menu_flight_plan_buttons').innerHTML = svgShapeToSVG(shapes['route'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('increase_ui_size').innerHTML = svgShapeToSVG(shapes['plus'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('reduce_ui_size').innerHTML = svgShapeToSVG(shapes['minus'], '#ffffff', '#000000', mainButtonSize * globalScale);
 }
 
 function initMap() {
@@ -256,37 +267,55 @@ function initEvents() {
 }
 
 function initButtons() {
-	jQuery('#open_flight_plan').click(openFlightPlan);
-	jQuery('#open_fuel_plan').click(openFuelPlan);
-	jQuery('#open_traffic').click(openTraffic);
-	jQuery('#open_log').click(openLog);
-	jQuery('#open_menu').click(openMenu);
-	jQuery('#close_menu').click(closeMenu);
-	jQuery('#toggle_fullscreen').click(async () => {
-		await toggleFullScreen()
+	jQuery('#open_flight_plan').click(() => {
+		openSideMenu("flight_plan");
 	});
+	jQuery('#open_fuel_plan').click(() => {
+		openSideMenu("fuel_plan");
+	});
+	jQuery('#open_traffic').click(() => {
+		openSideMenu("traffic");
+	});
+	jQuery('#show_log').click(() => {
+		switchSideMenu("show_log");
+	});
+	jQuery('#open_menu').click(() => {
+		openSideMenu(null);
+	});
+	jQuery('#close_menu').click(closeSideMenu);
+	jQuery('#toggle_fullscreen').click(toggleFullScreen);
 	jQuery('#toggle_snap').click(toggleSnap);
 	jQuery('#remove_last_waypoint').click(removeLastWaypoint);
-	jQuery('#load_flight_plan').click(async () => {
-		await getAvailableFlightPlans();
+	jQuery('#load_flight_plan').click(() => {
+		switchSideMenu("show_available_flight_plans");
 	});
-	jQuery('#save_flight_plan').click(async () => {
-		await saveJsonToServer()
+	jQuery('#save_flight_plan').click(() => {
+		saveJsonToServer(true);
 	});
 	jQuery('#clear_flight_plan').click(clearFlightPlan);
 	jQuery('#calc_flight_plan').click(calculateFlightPlan);
 	jQuery('#calc_fuel_plan').click(calculateFuelPlan);
 	jQuery('#center').click(centerMap);
 	jQuery('#north_up').click(toggleNorthUp);
+	jQuery('#show_menu_setting_buttons').click(() => {
+		switchSideMenu("show_menu_setting_buttons");
+	});
+	jQuery('#show_menu_flight_plan_buttons').click(() => {
+		switchSideMenu("show_menu_flight_plan_buttons");
+	});
+
+	jQuery('#increase_ui_size').click(() => {
+		setUIScale(true);
+	});
+	jQuery('#reduce_ui_size').click(() => {
+		setUIScale(false);
+	});
 
 	jQuery('.ui_button').css('background', blueColour);
 	jQuery('.menu_button').css('background', blueColour);
 	jQuery('#toggle_snap').css('background', greenColour);
-
-	/*jQuery('save_flight_plan').prop('disabled', true);
-	jQuery('clear_flight_plan').prop('disabled', true);
-	jQuery('#remove_last_waypoint').prop('disabled', true);*/
-
+	jQuery('#show_menu_setting_buttons').css('background', foregroundColour);
+	jQuery('#show_menu_flight_plan_buttons').css('background', backgroundColour);
 }
 
 function updateClock() {
@@ -295,13 +324,12 @@ function updateClock() {
 }
 
 function updateRouteLayer() {
-	let flipDiag = true;
 	let routeFeatures = [];
 
 	const lineStyle = new ol.style.Style({
 		stroke: new ol.style.Stroke({
 			color: routeColor,
-			width: routeWidth,
+			width: routeWidth * globalScale,
 		}),
 		zIndex: 150,
 	});
@@ -310,7 +338,7 @@ function updateRouteLayer() {
 		fill: labelColor,
 		stroke: new ol.style.Stroke({
 			color: activeRouteColor,
-			width: activeRouteWidth,
+			width: activeRouteWidth * globalScale,
 		}),
 		zIndex: 150,
 	});
@@ -323,15 +351,15 @@ function updateRouteLayer() {
 				backgroundFill: bgFill,
 				textAlign: 'left',
 				textBaseline: 'bottom',
-				font: labelFont,
-				offsetX: 30,
-				offsetY: 11,
-				padding: [1, 10, -1, 12],
+				font: 'bold ' + (labelSize * globalScale) + 'em ' + labelFont,
+				offsetX: 30 * globalScale,
+				offsetY: 11 * globalScale,
+				padding: [1 * globalScale, 7 * globalScale, -1 * globalScale, 9 * globalScale],
 			}),
 			image: new ol.style.Circle({
-				radius: pointRadius,
+				radius: pointRadius * globalScale,
 				fill: pointColor,
-				stroke: pointStroke,
+				stroke: new ol.style.Stroke({ color: 'white', width: pointStroke * globalScale }),
 			}),
 			zIndex: 150,
 		});
@@ -361,12 +389,12 @@ function updateRouteLayer() {
 
 function updateOwnshipLayer() {
 
-	ownshipSVG = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['cessna'], (airborneCount == 0) ? greenColour : 'grey', '#000000', 1));
+	ownshipSVG = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['cessna'], (airborneCount == 0) ? greenColour : 'grey', '#000000', globalScale));
 
 	ownshipStyle = new ol.style.Style({
 		image: new ol.style.Icon({
 			scale: 2.5,
-			imgSize: [shapes['cessna'].w, shapes['cessna'].h],
+			//imgSize: [shapes['cessna'].w, shapes['cessna'].h],
 			src: ownshipSVG,
 			rotation: toRadians(ownship.track) + OLMap.getView().getRotation(),
 		}),
@@ -390,7 +418,7 @@ function updateNavData() {
 
 	if (ownship.gpsAccuracy && ownship.gpsAccuracy > 10) {
 		jQuery('#gps').css('display', 'flex');
-		document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], amberColour, '#ffffff', overlayButtonSize);
+		document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], amberColour, '#ffffff', overlayButtonSize * globalScale);
 	}
 	else if (ownship.gpsAccuracy) {
 		jQuery('#gps').css('display', 'none');
@@ -452,7 +480,7 @@ function updateNavData() {
 	}
 }
 
-async function toggleFullScreen() {
+function toggleFullScreen() {
 	if (!document.fullscreenElement) {
 		if (document.documentElement.requestFullscreen) {
 			document.documentElement.requestFullscreen();
@@ -473,7 +501,7 @@ async function toggleFullScreen() {
 		jQuery('#toggle_fullscreen').text('Exit Fullscreen');
 
 		if ('wakeLock' in navigator) {
-			await requestWakeLock();
+			requestWakeLock();
 		}
 	}
 	else {
@@ -519,42 +547,91 @@ function releaseWakeLock() {
 	}
 }
 
-function openMenu() {
-	jQuery('#menu_title').text('Menu');
-	jQuery('#menu_items').css('display', 'block');
-	jQuery('#menu').css('width', '100%');
+function openSideMenu(layout) {
+	switch (layout) {
+		case "flight_plan":
+			jQuery('#menu_title').text('Flight Plan');
+			jQuery('#flight_items').css('display', 'block');
+			jQuery('#menu').css('width', '100%');
+
+			generateFlightPlanTable();
+			break;
+		case "fuel_plan":
+			jQuery('#menu_title').text('Fuel Plan');
+			jQuery('#fuel_items').css('display', 'block');
+			jQuery('#menu').css('width', '100%');
+
+			generateFuelPlanTable();
+			break;
+		case "traffic":
+			jQuery('#menu_title').text('ADS-B Traffic');
+			jQuery('#traffic_items').css('display', 'block');
+			jQuery('#menu').css('width', '100%');
+			break;
+		default:
+			jQuery('#menu_title').text('Menu');
+			jQuery('#menu_items').css('display', 'block');
+			jQuery('#menu').css('width', '100%');
+			switchSideMenu("show_menu_setting_buttons");
+	}
 }
 
-function openFlightPlan() {
-	jQuery('#menu_title').text('Flight Plan');
-	jQuery('#flight_items').css('display', 'block');
-	jQuery('#menu').css('width', '100%');
+async function switchSideMenu(layout) {
+	switch (layout) {
+		case "show_menu_setting_buttons":
+			jQuery('#show_menu_setting_buttons').css('background', foregroundColour);
+			jQuery('#show_menu_flight_plan_buttons').css('background', backgroundColour);
+			jQuery('#menu_setting_buttons').css('display', 'block');
+			jQuery('#menu_flight_plan_buttons').css('display', 'none');
+			break;
+		case "show_menu_flight_plan_buttons":
+			jQuery('#show_menu_setting_buttons').css('background', backgroundColour);
+			jQuery('#show_menu_flight_plan_buttons').css('background', foregroundColour);
+			jQuery('#menu_setting_buttons').css('display', 'none');
+			jQuery('#menu_flight_plan_buttons').css('display', 'block');
+			break;
+		case "show_log":
+			jQuery('#menu_title').text('Error Log');
+			jQuery('#log_items').css('display', 'block');
+			jQuery('#menu').css('width', '100%');
+			jQuery('#menu_items').css('display', 'none');
+			break;
+		case "show_available_flight_plans":
+			jQuery('#menu_title').text('Available Flight Plans');
+			jQuery('#available_fp_items').css('display', 'block');
+			jQuery('#menu_items').css('display', 'none');
 
-	generateFlightPlanTable();
+			let jsonFles = await getJsonFilesList();
+
+			let newBody = document.createElement('div');
+			let htmlBody = document.getElementById('available_fp_items');
+			htmlBody.innerHTML = "";
+
+			if (jsonFles) {
+				for (let i = 0; i < jsonFles.length; i++) {
+					const newButton = document.createElement('button');
+					newButton.innerText = jsonFles[i];
+					newButton.id = jsonFles[i];
+					newButton.className = "menu_button";
+					newButton.style = "background: " + blueColour;
+					newButton.addEventListener('click', () => {
+						loadJsonFromServer(jsonFles[i]);
+					});
+					newBody.appendChild(newButton);
+				}
+			}
+			else {
+				newBody.innerHTML = "No flight plans available.";
+			}
+
+			htmlBody.appendChild(newBody);
+			break;
+		default:
+			break;
+	}
 }
 
-function openFuelPlan() {
-	jQuery('#menu_title').text('Fuel Plan');
-	jQuery('#fuel_items').css('display', 'block');
-	jQuery('#menu').css('width', '100%');
-
-	generateFuelPlanTable();
-}
-
-function openTraffic() {
-	jQuery('#menu_title').text('ADS-B Traffic');
-	jQuery('#traffic_items').css('display', 'block');
-	jQuery('#menu').css('width', '100%');
-}
-
-function openLog() {
-	jQuery('#menu_title').text('Error Log');
-	jQuery('#log_items').css('display', 'block');
-	jQuery('#menu').css('width', '100%');
-	jQuery('#menu_items').css('display', 'none');
-}
-
-function closeMenu() {
+function closeSideMenu() {
 	jQuery('#menu_items').css('display', 'none');
 	jQuery('#flight_items').css('display', 'none');
 	jQuery('#fuel_items').css('display', 'none');
@@ -599,7 +676,7 @@ function removeLastWaypoint() {
 		generateFuelPlanTable();
 		calculateFlightPlan();
 		calculateFuelPlan();
-		closeMenu();
+		closeSideMenu();
 
 		if (route.length < 2) {
 			resetUI();
@@ -624,7 +701,7 @@ function clearFlightPlan() {
 
 	updateRouteLayer();
 	updateValidationUI();
-	closeMenu();
+	closeSideMenu();
 
 	localStorage.removeItem("currentFlightPlan");
 }
@@ -635,6 +712,7 @@ function removeFirstWaypoint() {
 		route.shift();
 		updateRouteLayer();
 		updateValidationUI();
+		saveJsonToServer(false);
 	}
 }
 
@@ -831,8 +909,10 @@ function generateFuelPlanTable() {
 
 		newRow = document.createElement('tr');
 		rowConstruct = '<td class="mid_font">Hold Fuel</td>';
-		rowConstruct += '<td class="mid_font">-</td><td class="mid_font">-</td><td class="mid_font">-</td>'
-		rowConstruct += '<td><input type="number"  class="mid_font" id="hold_fuel" value="' + getDecimalText(ownship.holdFuel) + '" step="0.1" min="0"></td>';
+		rowConstruct += '<td class="mid_font">-</td>';
+		rowConstruct += '<td><input type="number"  class="mid_font" id="hold_fuel_flow" value="' + getDecimalText(ownship.holdFuelFlow) + '" step="0.1" min="0"></td>';
+		rowConstruct += '<td><input type="number"  class="mid_font" id="hold_duration" value="' + getTwoDigitText(ownship.holdDuration) + '" step="1" min="1"></td>';
+		rowConstruct += '<td class="mid_font">' + getDecimalText(ownship.holdFuel) + '</td>';
 		rowConstruct += '<td class="mid_font">' + getDecimalText(totalFuelRemaining) + '</td>';
 		newRow.innerHTML = rowConstruct;
 		newBody.appendChild(newRow);
@@ -845,8 +925,10 @@ function generateFuelPlanTable() {
 
 		newRow = document.createElement('tr');
 		rowConstruct = '<td class="mid_font">Reserve Fuel</td>';
-		rowConstruct += '<td class="mid_font">-</td><td class="mid_font">-</td><td class="mid_font">-</td>'
-		rowConstruct += '<td><input type="number"  class="mid_font" id="reserve_fuel" value="' + getDecimalText(ownship.reserveFuel) + '" step="0.1" min="0"></td>';
+		rowConstruct += '<td class="mid_font">-</td>';
+		rowConstruct += '<td><input type="number"  class="mid_font" id="reserve_fuel_flow" value="' + getDecimalText(ownship.reserveFuelFlow) + '" step="0.1" min="0"></td>';
+		rowConstruct += '<td><input type="number"  class="mid_font" id="reserve_duration" value="' + getTwoDigitText(ownship.reserveDuration) + '" step="1" min="0"></td>';
+		rowConstruct += '<td class="mid_font">' + getDecimalText(ownship.reserveFuel) + '</td>';
 		rowConstruct += '<td class="mid_font">' + getDecimalText(totalFuelRemaining) + '</td>';
 		newRow.innerHTML = rowConstruct;
 		newBody.appendChild(newRow);
@@ -874,21 +956,27 @@ function calculateFuelPlan() {
 	ownship.totalFuel = Number(document.getElementById('total_fuel').value);
 
 	if (route.length > 1) {
-		let reserveFuelField = document.getElementById('reserve_fuel').value;
-		ownship.reserveFuel = (reserveFuelField == "") ? null : Number(reserveFuelField);
-		ownship.holdFuel = Number(document.getElementById('hold_fuel').value);
+		ownship.holdFuelFlow = Number(document.getElementById('hold_fuel_flow').value);
+		ownship.holdDuration = Number(document.getElementById('hold_duration').value);
+		ownship.reserveFuelFlow = Number(document.getElementById('reserve_fuel_flow').value);
+		ownship.reserveDuration = Number(document.getElementById('reserve_duration').value);
+
+		ownship.reserveFuel = ownship.reserveFuelFlow * ownship.reserveDuration / 60;
+		ownship.holdFuel = ownship.holdFuelFlow * ownship.holdDuration / 60;
 	}
 
 	for (let i = 1; i < route.length; ++i) {
 		table_fuel_flow = document.getElementById(route[i].id + '_fuel_flow').value;
 		route[i].fuelFlow = (table_fuel_flow == "") ? null : Number(table_fuel_flow);
 
-		if (route[i].fuelFlow == null || !ownship.reserveFuel || ownship.reserveFuel == 0 || (!airborneMode && route[i].ete.length == 0)) fuelPlanValidated = false;
+		if (route[i].fuelFlow == null || (!airborneMode && route[i].ete.length == 0)) fuelPlanValidated = false;
 
 		if (i == 1 && airborneMode) ownship.routeFuelReq = route[i].fuelFlow * (ownship.ete[0] + (ownship.ete[1] / 60));
 
 		if (route[i].ete.length != 0) route[i].fuelRequired = (route[i].ete[0] + (route[i].ete[1] / 60)) * route[i].fuelFlow;
 	}
+
+	if (!ownship.reserveFuel || ownship.reserveFuel == 0) fuelPlanValidated = false;
 
 	generateFuelPlanTable();
 	updateValidationUI();
@@ -949,12 +1037,12 @@ function toggleNorthUp() {
 	northUp = !northUp;
 
 	if (northUp) {
-		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['compass'], '#ffffff', '#000000', overlayButtonSize);
+		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['compass'], '#ffffff', '#000000', overlayButtonSize * globalScale);
 		jQuery('#north_up svg').css('transform', 'rotate(-45deg)');
 		animateView(500);
 	}
 	else {
-		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'], '#ffffff', '#000000', overlayButtonSize);
+		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'], '#ffffff', '#000000', overlayButtonSize * globalScale);
 		animateView(500);
 	}
 
@@ -1049,7 +1137,7 @@ function gpsError(error) {
 	navigator.geolocation.clearWatch(gpsWatchID);
 	log('Warning: ' + error.message);
 	jQuery('#gps').css('display', 'flex');
-	document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], redColour, '#ffffff', overlayButtonSize);
+	document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], redColour, '#ffffff', overlayButtonSize * globalScale);
 	ownship.gpsAccuracy = null;
 }
 
@@ -1094,6 +1182,7 @@ function log(string) {
 function animateView(duration) {
 	if (!ownship.position && !ownship.track) return;
 
+	OLMap.getView().cancelAnimations();
 	OLMap.getView().animate(
 		{
 			center: ol.proj.fromLonLat([ownship.position[0], ownship.position[1]]),
@@ -1108,7 +1197,7 @@ function onPostrender(event) {
 		ownshipStyle = new ol.style.Style({
 			image: new ol.style.Icon({
 				scale: 2.5,
-				imgSize: [shapes['cessna'].w, shapes['cessna'].h],
+				//imgSize: [shapes['cessna'].w, shapes['cessna'].h],
 				src: ownshipSVG,
 				rotation: toRadians(ownship.track) + OLMap.getView().getRotation(),
 			}),
@@ -1154,17 +1243,22 @@ function getNextID() {
 	return id + 1;
 }
 
-async function saveJsonToServer() {
+async function saveJsonToServer(menuSave) {
 	try {
 		let fileName = null;
 
-		for (let i = 0; i < route.length; i++) {
-			if (i == 0) {
-				fileName = route[i].sectorName;
+		if (menuSave) {
+			for (let i = 0; i < route.length; i++) {
+				if (i == 0) {
+					fileName = route[i].sectorName;
+				}
+				else {
+					fileName += "-" + route[i].sectorName;
+				}
 			}
-			else {
-				fileName += "-" + route[i].sectorName;
-			}
+		}
+		else {
+			fileName = localStorage.getItem("currentFlightPlan");
 		}
 
 		if (!fileName) return;
@@ -1188,7 +1282,7 @@ async function saveJsonToServer() {
 		log('Error during fetch: ' + err.message);
 	}
 
-	closeMenu();
+	if (menuSave) closeSideMenu();
 }
 
 async function loadJsonFromServer(fileName) {
@@ -1222,7 +1316,7 @@ async function loadJsonFromServer(fileName) {
 		log('Error during fetch: ' + err.message);
 	}
 
-	closeMenu();
+	closeSideMenu();
 }
 
 async function getJsonFilesList() {
@@ -1241,35 +1335,20 @@ async function getJsonFilesList() {
 	}
 }
 
-async function getAvailableFlightPlans() {
-	jQuery('#menu_title').text('Available Flight Plans');
-	jQuery('#available_fp_items').css('display', 'block');
-	jQuery('#menu_items').css('display', 'none');
-
-	let jsonFles = await getJsonFilesList();
-
-	let newBody = document.createElement('div');
-	let htmlBody = document.getElementById('available_fp_items');
-	htmlBody.innerHTML = "";
-
-	if (jsonFles) {
-		for (let i = 0; i < jsonFles.length; i++) {
-			const newButton = document.createElement('button');
-			newButton.innerText = jsonFles[i];
-			newButton.id = jsonFles[i];
-			newButton.className = "menu_button";
-			newButton.style = "background: " + blueColour;
-			newButton.addEventListener('click', async function () {
-				await loadJsonFromServer(jsonFles[i]);
-			});
-			newBody.appendChild(newButton);
-		}
+function setUIScale(increase) {
+	if (increase) {
+		globalScale += 0.1;
 	}
-	else {
-		newBody.innerHTML = "No flight plans available.";
+	else if (globalScale > 0.5) {
+		globalScale -= 0.1;
 	}
 
-	htmlBody.appendChild(newBody);
+	document.documentElement.style.setProperty("--SCALE", globalScale);
+	localStorage.setItem("globalScale", globalScale);
+
+	initIcons();
+	updateRouteLayer();
+	jQuery('#zoom').text(getDecimalText(globalScale));
 }
 
 initialize();

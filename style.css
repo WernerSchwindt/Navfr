@@ -1,3 +1,7 @@
+:root{
+	--SCALE: 1;
+}
+
 html,
 body {
 	overflow: hidden;
@@ -13,45 +17,55 @@ body {
 .info_container {
 	color: white;
 	text-align: center;
-	font-family: Helvetica, Arial, sans-serif;
+	font-family: Arial, Sans-serif;
 	font-weight: bold;
 	background-color: rgba(0, 0, 0, 0.6);
 	text-shadow: 0px 0px 3px black;
-	line-height: 1.1em;
+	line-height: calc(1.1em * var(--SCALE));
 }
 
 #button_container {
 	display: flex;
 	justify-content: space-between;
-	padding: 0 1.5em 0 1.5em;
+	padding: 0 calc(1.5em * var(--SCALE)) 0 calc(1.5em * var(--SCALE));
 }
 
 .ui_button {
 	display: flex;
 	cursor: pointer;
-	width: 1.4em;
-	height: 1.4em;
+	width: calc(4.2em * var(--SCALE));
+	height: calc(4.2em * var(--SCALE));
 	color: white;
 	border: 0;
-	font-size: 2.5em;
 	padding: 0;
 	pointer-events: all;
 }
 
+.tab_button {
+	display: flex;
+	cursor: pointer;
+	width: calc(4.2em * var(--SCALE));
+	height: calc(4.2em * var(--SCALE));
+	color: white;
+	border: 0;
+	padding: 0;
+	pointer-events: all;
+	border-radius: calc(0.75em * var(--SCALE)) calc(0.75em * var(--SCALE)) 0 0;
+}
+
 #buttons_top {
 	position: relative;
-	margin-top: 3em;
+	margin-top: calc(3em * var(--SCALE));
 	width: 100%;
 }
 
 .ui_button_transparent {
 	cursor: pointer;
-	width: 1.2em;
-	height: 1.2em;
+	width: calc(4.2em * var(--SCALE));
+	height: calc(4.2em * var(--SCALE));
 	color: white;
 	border: 0;
 	background-color: rgba(0, 0, 0, 0.6);
-	font-size: 2.5em;
 	padding: 0;
 	pointer-events: all;
 }
@@ -61,38 +75,49 @@ svg {
 }
 
 #gps {
-	top: 1em;
 	display: none;
-	border-radius: 0 0.2em 0.2em 0;
+	border-radius: 0 calc(0.75em * var(--SCALE)) calc(0.75em * var(--SCALE)) 0;
+	margin-bottom: calc(0.5em * var(--SCALE));
+}
+
+#maps {
+	border-radius: 0 calc(0.75em * var(--SCALE)) calc(0.75em * var(--SCALE)) 0;
+	margin-bottom: calc(0.5em * var(--SCALE));
 }
 
 #center {
 	display: none;
-	margin-bottom: 0.1em;
-	border-radius: 0.2em 0 0 0.2em;
+	margin-bottom: calc(0.5em * var(--SCALE));
+	border-radius: calc(0.75em * var(--SCALE)) 0 0 calc(0.75em * var(--SCALE));
 }
 
 #north_up {
 	display: none;
-	margin-bottom: 0.1em;
-	border-radius: 0.2em 0 0 0.2em;
+	margin-bottom: calc(0.5em * var(--SCALE));
+	border-radius: calc(0.75em * var(--SCALE)) 0 0 calc(0.75em * var(--SCALE));
 }
 
 #left_ui {
+	top: 1em;
 	right: 0;
 	position: absolute;
 }
 
+#right_ui {
+	top: 1em;
+	position: absolute;
+}
+
 .big_font {
-	font-size: 1.5em;
+	font-size: calc(1.5em * var(--SCALE));
 }
 
 .small_font {
-	font-size: 0.75em;
+	font-size: calc(0.75em * var(--SCALE));
 }
 
 .mid_font {
-	font-size: 1.0em;
+	font-size: calc(1.0em * var(--SCALE));
 }
 
 
@@ -104,10 +129,10 @@ svg {
 	z-index: 1;
 	top: 0;
 	right: 0;
-	background-color: #313131;
+	background-color: #262626;
 	overflow: hidden;
 	transition: 0.5s;
-	padding-top: 2em;
+	padding-top: calc(2em * var(--SCALE));
 	color: white;
 	font-family: Helvetica, Arial, sans-serif;
 	font-weight: bold;
@@ -126,28 +151,28 @@ svg {
 
 #clock_block {
 	bottom: 0;
-	width: 8em;
-	height: 1.4em;
-	left: calc(50% - 4em);
-	padding: 0.4em 0 0.1em 0;
+	width: calc(8em * var(--SCALE));
+	height: calc(1.4em * var(--SCALE));
+	left: calc(50% - (4em * var(--SCALE)));
+	padding: calc(0.4em * var(--SCALE)) 0 calc(0.1em * var(--SCALE)) 0;
 	position: absolute;
 }
 
 #alt_block {
 	bottom: 0;
-	min-width: 5em;
-	height: 2.4em;
+	min-width: calc(5em * var(--SCALE));
+	height: calc(2.4em * var(--SCALE));
 	left: 0;
-	padding: 0.2em 0.1em 0.4em 0.1em;
+	padding: calc(0.2em * var(--SCALE)) calc(0.1em * var(--SCALE)) calc(0.4em * var(--SCALE)) calc(0.1em * var(--SCALE));
 	position: absolute;
 }
 
 #ete_block {
 	bottom: 0;
-	min-width: 5em;
-	height: 2.4em;
+	min-width: calc(5em * var(--SCALE));
+	height: calc(2.4em * var(--SCALE));
 	right: 0;
-	padding: 0.2em 0.1em 0.4em 0.1em;
+	padding: calc(0.2em * var(--SCALE)) calc(0.1em * var(--SCALE)) calc(0.4em * var(--SCALE)) calc(0.1em * var(--SCALE));
 	position: absolute;
 }
 
@@ -176,7 +201,7 @@ table {
 }
 
 #top_ui td {
-	padding: 0.2em;
+	padding: calc(0.2em * var(--SCALE));
 	width: 25%;
 }
 
@@ -192,13 +217,13 @@ table {
 }
 
 #dest_block {
-	line-height: 1.3em;
+	line-height: calc(1.3em * var(--SCALE));
 }
 
 #dest_block table td {
 	border-top: 1px solid white;
 	border-bottom: 1px solid white;
-	padding-top: 0.35em;
+	padding-top: calc(0.35em * var(--SCALE));
 }
 
 #dest_block table td:nth-child(2) {
@@ -207,11 +232,43 @@ table {
 
 
 input {
-	width: 2.5em;
+	width: calc(2.5em * var(--SCALE));
 }
 
 #menu_items {
 	display: none;
+}
+
+#menu_flight_plan_buttons{
+	display: none;
+}
+
+#menu_tabs {
+	display: flex;
+	padding: 0 calc(1.5em * var(--SCALE)) 0 calc(1.5em * var(--SCALE));
+}
+
+#menu_tabs button{
+	margin-right: calc(0.75em * var(--SCALE));
+}
+
+#zoom_ui{
+	display: flex;
+	margin-top: calc(1em * var(--SCALE));
+}
+
+#reduce_ui_size{
+	margin-left: auto;
+	margin-right: calc(2em * var(--SCALE));
+}
+
+#increase_ui_size{
+	margin-right: auto;
+	margin-left: calc(2em * var(--SCALE));
+}
+
+#zoom_text{
+	margin: auto 0;
 }
 
 #flight_items {
@@ -234,6 +291,11 @@ input {
 	height: 100%;
 }
 
+.menu_area{
+	background-color: #313131;
+	padding-bottom: calc(1em * var(--SCALE));
+}
+
 #available_fp_items {
 	display: none;
 	height: 100%;
@@ -244,20 +306,20 @@ input {
 }
 
 #flight_table {
-	width: 102em;
-	margin-top: 1em;
-	margin-bottom: 1em;
+	width: calc(102em * var(--SCALE));
+	margin-top: calc(1em * var(--SCALE));
+	margin-bottom: calc(1em * var(--SCALE));
 }
 
 #flight_table td {
 	border: 1px solid white;
-	padding-top: 0.35em;
+	padding-top: calc(0.35em * var(--SCALE));
 	width: 8.33%;
 }
 
 #flight_table thead td {
 	background: #595959;
-	padding: 0.5em 0.5em 0.5em 0.5em;
+	padding: calc(0.5em * var(--SCALE));
 }
 
 #flight_table tbody {
@@ -265,24 +327,24 @@ input {
 }
 
 #flight_table input {
-	width: 4.1em;
+	width: calc(4.1em * var(--SCALE));
 }
 
 #fuel_table {
-	width: 68em;
-	margin-top: 1em;
-	margin-bottom: 1em;
+	width: calc(68em * var(--SCALE));
+	margin-top: calc(1em * var(--SCALE));
+	margin-bottom: calc(1em * var(--SCALE));
 }
 
 #fuel_table td {
 	border: 1px solid white;
-	padding-top: 0.35em;
+	padding-top: calc(0.35em * var(--SCALE));
 	width: 8.33%;
 }
 
 #fuel_table thead td {
 	background: #595959;
-	padding: 0.5em 0.5em 0.5em 0.5em;
+	padding: calc(0.5em * var(--SCALE));
 }
 
 #fuel_table tbody {
@@ -290,17 +352,17 @@ input {
 }
 
 #fuel_table input {
-	width: 4.1em;
+	width: calc(4.1em * var(--SCALE));
 }
 
 #flight_table_scroll {
 	overflow: auto;
-	height: calc(100% - 21em);
+	height: calc(100% - (21em * var(--SCALE)));
 }
 
 #fuel_table_scroll {
 	overflow: auto;
-	height: calc(100% - 19.9em);
+	height: calc(100% - (19.9em * var(--SCALE)));
 }
 
 #menu_title {
@@ -308,7 +370,7 @@ input {
 }
 
 .menu_header {
-	padding-left: 1em;
+	padding-left: calc(1em * var(--SCALE));
 }
 
 .menu_button {
@@ -320,7 +382,7 @@ input {
 	color: white;
 	font-family: Helvetica, Arial, sans-serif;
 	font-weight: bold;
-	font-size: 1.0em;
+	font-size: calc(1.0em * var(--SCALE));
 }
 
 .fullscreen:-webkit-full-screen {
