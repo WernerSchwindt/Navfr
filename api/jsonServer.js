@@ -12,6 +12,11 @@ app.get('/', (req, res) => {
 	const fileName = req.query.filename;
 
 	if (fileName) {
+		if (String(fileName).includes("..")) {
+			console.error('Invalid filename requested.')
+			return;
+		}
+
 		fs.readFile('./data/' + fileName + '.json', 'utf8', (err, data) => {
 			if (err) {
 				console.error('Error reading file:', err);
@@ -37,6 +42,11 @@ app.post('/', (req, res) => {
 
 	if (!req.query.filename) {
 		console.error('No filename specified.');
+		return;
+	}
+
+	if (String(req.query.fileName).includes("..")) {
+		console.error('Invalid filename given.')
 		return;
 	}
 

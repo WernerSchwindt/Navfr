@@ -119,6 +119,7 @@ function initIcons() {
 	document.getElementById('show_menu_flight_plan_buttons').innerHTML = svgShapeToSVG(shapes['route'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('increase_ui_size').innerHTML = svgShapeToSVG(shapes['plus'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('reduce_ui_size').innerHTML = svgShapeToSVG(shapes['minus'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('back_button').innerHTML = svgShapeToSVG(shapes['back_arrow'], '#ffffff', '#000000', mainButtonSize * globalScale);
 }
 
 function initMap() {
@@ -292,7 +293,10 @@ function initButtons() {
 	jQuery('#save_flight_plan').click(() => {
 		saveJsonToServer(true);
 	});
-	jQuery('#clear_flight_plan').click(clearFlightPlan);
+	jQuery('#reset_flight_plan').click(resetFlightPlan);
+	jQuery('#clear_flight_plan').click(() => {
+		clearFlightPlan(true);
+	});
 	jQuery('#calc_flight_plan').click(calculateFlightPlan);
 	jQuery('#calc_fuel_plan').click(calculateFuelPlan);
 	jQuery('#center').click(centerMap);
@@ -303,12 +307,15 @@ function initButtons() {
 	jQuery('#show_menu_flight_plan_buttons').click(() => {
 		switchSideMenu("show_menu_flight_plan_buttons");
 	});
-
 	jQuery('#increase_ui_size').click(() => {
 		setUIScale(true);
 	});
 	jQuery('#reduce_ui_size').click(() => {
 		setUIScale(false);
+	});
+	jQuery('#back_button').click(() => {
+		closeSideMenu();
+		openSideMenu(null);
 	});
 
 	jQuery('.ui_button').css('background', blueColour);
@@ -354,7 +361,7 @@ function updateRouteLayer() {
 				font: 'bold ' + (labelSize * globalScale) + 'em ' + labelFont,
 				offsetX: 30 * globalScale,
 				offsetY: 11 * globalScale,
-				padding: [1 * globalScale, 7 * globalScale, -1 * globalScale, 9 * globalScale],
+				padding: [1 * globalScale, 8 * globalScale, -1 * globalScale, 10 * globalScale],
 			}),
 			image: new ol.style.Circle({
 				radius: pointRadius * globalScale,
@@ -572,7 +579,6 @@ function openSideMenu(layout) {
 			jQuery('#menu_title').text('Menu');
 			jQuery('#menu_items').css('display', 'block');
 			jQuery('#menu').css('width', '100%');
-			switchSideMenu("show_menu_setting_buttons");
 	}
 }
 
@@ -583,22 +589,26 @@ async function switchSideMenu(layout) {
 			jQuery('#show_menu_flight_plan_buttons').css('background', backgroundColour);
 			jQuery('#menu_setting_buttons').css('display', 'block');
 			jQuery('#menu_flight_plan_buttons').css('display', 'none');
+			jQuery('#back_button').css('display', 'none');
 			break;
 		case "show_menu_flight_plan_buttons":
 			jQuery('#show_menu_setting_buttons').css('background', backgroundColour);
 			jQuery('#show_menu_flight_plan_buttons').css('background', foregroundColour);
 			jQuery('#menu_setting_buttons').css('display', 'none');
 			jQuery('#menu_flight_plan_buttons').css('display', 'block');
+			jQuery('#back_button').css('display', 'none');
 			break;
 		case "show_log":
 			jQuery('#menu_title').text('Error Log');
 			jQuery('#log_items').css('display', 'block');
+			jQuery('#back_button').css('display', 'block');
 			jQuery('#menu').css('width', '100%');
 			jQuery('#menu_items').css('display', 'none');
 			break;
 		case "show_available_flight_plans":
 			jQuery('#menu_title').text('Available Flight Plans');
 			jQuery('#available_fp_items').css('display', 'block');
+			jQuery('#back_button').css('display', 'block');
 			jQuery('#menu_items').css('display', 'none');
 
 			let jsonFles = await getJsonFilesList();
@@ -638,6 +648,7 @@ function closeSideMenu() {
 	jQuery('#traffic_items').css('display', 'none');
 	jQuery('#log_items').css('display', 'none');
 	jQuery('#available_fp_items').css('display', 'none');
+	jQuery('#back_button').css('display', 'none');
 	jQuery('#menu').css('width', '0');
 	jQuery('#menu_title').text('');
 }
@@ -689,25 +700,52 @@ function removeLastWaypoint() {
 	}
 }
 
-function clearFlightPlan() {
+function clearFlightPlan(fullClear) {
 	resetUI();
 
 	for (let i = 0; i < route.length; ++i) {
 		route[i].setNull();
 	}
 
+	for (let i = 0; i < completedRoute.length; ++i) {
+		completedRoute[i].setNull();
+	}
 	route = [];
+	completedRoute = [];
 	departure = null;
+	ownship.atd = null;
+	ownship.etd = [];
 
+	if(fullClear)
+	{
+		updateRouteLayer();
+		updateValidationUI();
+		closeSideMenu();
+
+		localStorage.removeItem("currentFlightPlan");
+	}
+}
+
+function resetFlightPlan() {
+	for (let i = completedRoute.length - 1; i >= 0; --i) {
+		let sector = new SectorObject(completedRoute[i].endPoint);
+		sector.clone(completedRoute[i]);
+		route.unshift(sector);
+		completedRoute[i].setNull();
+	}
+
+	completedRoute = [];
+	ownship.atd = null;
 	updateRouteLayer();
 	updateValidationUI();
 	closeSideMenu();
-
-	localStorage.removeItem("currentFlightPlan");
 }
 
 function removeFirstWaypoint() {
 	if (route.length > 1) {
+		let sector = new SectorObject(route[0].endPoint);
+		sector.clone(route[0]);
+		completedRoute.push(sector);
 		route[0].setNull();
 		route.shift();
 		updateRouteLayer();
@@ -1268,7 +1306,7 @@ async function saveJsonToServer(menuSave) {
 			headers: {
 				'Content-Type': 'application/json',
 			},
-			body: JSON.stringify({ ownship, route }),
+			body: JSON.stringify({ ownship, route, completedRoute }),
 		});
 
 		if (response.ok) {
@@ -1290,16 +1328,27 @@ async function loadJsonFromServer(fileName) {
 		const response = await fetch(flightPlanData + '?filename=flight_plans/' + fileName);
 
 		if (response.ok) {
+			
+			clearFlightPlan(false);			
+
 			const result = await response.json(); // Parse JSON response
 			ownship = result.ownship;
-			route = [];
-
+		
 			for (let i = 0; i < result.route.length; ++i) {
 				let newSector = new SectorObject(result.route[i].endPoint);
 				newSector.clone(result.route[i]);
 				route.push(newSector);
 			}
-
+			
+			if(result.completedRoute)
+			{
+				for (let i = 0; i < result.completedRoute.length; ++i) {
+					let newSector = new SectorObject(result.completedRoute[i].endPoint);
+					newSector.clone(result.completedRoute[i]);
+					completedRoute.push(newSector);
+				}
+			}
+			
 			generateFlightPlanTable();
 			generateFuelPlanTable();
 			calculateFlightPlan();

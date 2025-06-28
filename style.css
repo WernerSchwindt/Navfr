@@ -2,11 +2,28 @@
 	--SCALE: 1;
 }
 
+@font-face {
+  font-family: "Arial";
+  src: url('font/ARIALBD.TTF') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+
+}
+
+@font-face {
+  font-family: "Arial";
+  src: url('font/ARIAL.TTF') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 html,
 body {
 	overflow: hidden;
 	height: 100%;
 	margin: 0px;
+	font-family: "Arial";
+	font-weight: bold;
 }
 
 #layout_container {
@@ -17,8 +34,6 @@ body {
 .info_container {
 	color: white;
 	text-align: center;
-	font-family: Arial, Sans-serif;
-	font-weight: bold;
 	background-color: rgba(0, 0, 0, 0.6);
 	text-shadow: 0px 0px 3px black;
 	line-height: calc(1.1em * var(--SCALE));
@@ -134,8 +149,16 @@ svg {
 	transition: 0.5s;
 	padding-top: calc(2em * var(--SCALE));
 	color: white;
-	font-family: Helvetica, Arial, sans-serif;
-	font-weight: bold;
+}
+
+#menu_top_buttons
+{
+	display: flex;
+}
+
+#back_button{
+	margin-left: calc(1em * var(--SCALE));
+	display: none;
 }
 
 #map_container {
@@ -380,9 +403,9 @@ input {
 	border: 0;
 	cursor: pointer;
 	color: white;
-	font-family: Helvetica, Arial, sans-serif;
-	font-weight: bold;
 	font-size: calc(1.0em * var(--SCALE));
+	font-family: "Arial";
+	font-weight: normal;
 }
 
 .fullscreen:-webkit-full-screen {
