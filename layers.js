@@ -5,9 +5,9 @@ function createBaseLayers() {
 	let layers_group = new ol.layer.Group({
 		layers: layers,
 	});
-	let aus = new ol.Collection();
+	let vfrCharts = new ol.Collection();
 
-	aus.push(new ol.layer.Tile({
+	/*vfrCharts.push(new ol.layer.Tile({
 		source: new ol.source.XYZ({
 			"url": url + '/geoserver/gwc/service/tms/1.0.0/ne:world@EPSG:900913@png/{z}/{x}/{-y}.png',
 			maxZoom: 20,
@@ -16,7 +16,24 @@ function createBaseLayers() {
 		name: 'aus_vfr_maps',
 		title: 'Aus VFR Maps',
 		type: 'base',
-	}));
+	}));*/
+
+	maps.forEach(element => {
+		if(!element['url'] || element['url'] == "") {
+			return;
+		};
+
+		vfrCharts.push(new ol.layer.Tile({
+			source: new ol.source.XYZ({
+				"url": url + element['url'],
+				maxZoom: 20,
+				transition: 0,
+			}),
+			name: element['id'],
+			title: element['name'],
+			type: 'base',
+		}));
+	});
 
 	/*aus.push(new ol.layer.Tile({
 		source: new ol.source.OSM({
@@ -30,10 +47,10 @@ function createBaseLayers() {
 	}));*/
 
 	layers.push(new ol.layer.Group({
-		name: 'aus',
-		title: 'Australia',
-		layers: new ol.Collection(aus.getArray().reverse()),
-		//fold: 'open',
+		name: 'vfr_charts',
+		title: 'VFR Charts',
+		layers: new ol.Collection(vfrCharts.getArray().reverse()),
+		fold: 'open',
 	}));
 
 	return layers_group;

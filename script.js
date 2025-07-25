@@ -19,12 +19,15 @@ let fuelPlanValidated = null;
 let departure = null;
 let wakeLock = null;
 let ownship = {};
+let renderPars = {};
 let gpsWatchID = null;
 let ownshipShape = null;
 let airborneCount = 3;
 let airborneMode = null;
 let canRemoveWaypoint = null;
 let globalScale = 1;
+let airpotList = null;
+let styleArrey = [];
 
 let testMode = false;
 let simMode = false;
@@ -36,8 +39,11 @@ let animate = false;
 
 // Ownship
 let viewPoint = new ol.geom.Point([0, 0]);
-let ownshipStyle = null;
 let ownshipSVG = null;
+let compassSVG = null;
+let trackSVG = null;
+let trackBugSVG = null;
+
 let ownshipIcon = null;
 
 function initialize() {
@@ -89,6 +95,19 @@ function initialize() {
 	ownship.holdFuelFlow = 0;
 	ownship.holdDuration = 0;
 
+	
+	styleArrey[0] = new ol.style.Style({
+		image: new ol.style.Circle({
+			radius: 153 * globalScale,
+			stroke: new ol.style.Stroke({ color: [255, 255, 255, 0.8], width: 32 * globalScale }),
+		}),
+		zIndex: 189,
+	});
+
+	compassSVG = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['compass_rose'], '#000000', '#000000', globalScale));
+	trackSVG = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['track'], '#000000', '#ffffff', globalScale));
+	trackBugSVG = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['track_bug'], '#000000', '#ffffff', globalScale));
+
 	airborneMode = false;
 	canRemoveWaypoint = false;
 
@@ -102,24 +121,26 @@ function initialize() {
 		gpsWatchID = navigator.geolocation.watchPosition(updateOwnship, gpsError, options);
 	}
 
-	if (localStorage.getItem("currentFlightPlan")) loadJsonFromServer(localStorage.getItem("currentFlightPlan"));
+	if (localStorage.getItem("currentFlightPlan")) loadFlightPlanFromServer(localStorage.getItem("currentFlightPlan"));
+
+	loadAirportsFromServer();
 }
 
 function initIcons() {
-	document.getElementById('center').innerHTML = svgShapeToSVG(shapes['center'], '#ffffff', '#000000', overlayButtonSize * globalScale);
-	document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'], '#ffffff', '#000000', overlayButtonSize * globalScale);
-	document.getElementById('maps').innerHTML = svgShapeToSVG(shapes['map'], '#ffffff', '#000000', overlayButtonSize * globalScale);
-	document.getElementById('open_fuel_plan').innerHTML = svgShapeToSVG(shapes['fuel'], '#ffffff', '#000000', mainButtonSize * globalScale);
-	document.getElementById('open_flight_plan').innerHTML = svgShapeToSVG(shapes['takeoff'], '#ffffff', '#000000', mainButtonSize * globalScale);
-	document.getElementById('direct_to').innerHTML = svgShapeToSVG(shapes['direct'], '#ffffff', '#000000', mainButtonSize * globalScale);
-	document.getElementById('open_traffic').innerHTML = svgShapeToSVG(shapes['wifi'], '#ffffff', '#000000', mainButtonSize * globalScale);
-	document.getElementById('open_menu').innerHTML = svgShapeToSVG(shapes['bars'], '#ffffff', '#000000', mainButtonSize * globalScale);
-	document.getElementById('close_menu').innerHTML = svgShapeToSVG(shapes['cross'], '#ffffff', '#000000', mainButtonSize * globalScale);
-	document.getElementById('show_menu_setting_buttons').innerHTML = svgShapeToSVG(shapes['gear'], '#ffffff', '#000000', mainButtonSize * globalScale);
-	document.getElementById('show_menu_flight_plan_buttons').innerHTML = svgShapeToSVG(shapes['route'], '#ffffff', '#000000', mainButtonSize * globalScale);
-	document.getElementById('increase_ui_size').innerHTML = svgShapeToSVG(shapes['plus'], '#ffffff', '#000000', mainButtonSize * globalScale);
-	document.getElementById('reduce_ui_size').innerHTML = svgShapeToSVG(shapes['minus'], '#ffffff', '#000000', mainButtonSize * globalScale);
-	document.getElementById('back_button').innerHTML = svgShapeToSVG(shapes['back_arrow'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('center').innerHTML = svgShapeToSVG(ui['center'], '#ffffff', '#000000', overlayButtonSize * globalScale);
+	document.getElementById('north_up').innerHTML = svgShapeToSVG(ui['plane'], '#ffffff', '#000000', overlayButtonSize * globalScale);
+	document.getElementById('maps').innerHTML = svgShapeToSVG(ui['map'], '#ffffff', '#000000', overlayButtonSize * globalScale);
+	document.getElementById('open_fuel_plan').innerHTML = svgShapeToSVG(ui['fuel'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('open_flight_plan').innerHTML = svgShapeToSVG(ui['takeoff'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('direct_to').innerHTML = svgShapeToSVG(ui['direct'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('open_traffic').innerHTML = svgShapeToSVG(ui['wifi'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('open_menu').innerHTML = svgShapeToSVG(ui['bars'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('close_menu').innerHTML = svgShapeToSVG(ui['cross'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('show_menu_setting_buttons').innerHTML = svgShapeToSVG(ui['gear'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('show_menu_flight_plan_buttons').innerHTML = svgShapeToSVG(ui['route'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('increase_ui_size').innerHTML = svgShapeToSVG(ui['plus'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('reduce_ui_size').innerHTML = svgShapeToSVG(ui['minus'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('back_button').innerHTML = svgShapeToSVG(ui['back_arrow'], '#ffffff', '#000000', mainButtonSize * globalScale);
 }
 
 function initMap() {
@@ -188,6 +209,12 @@ function ol_map_init() {
 		}),
 		maxTilesLoading: 4,
 	});
+
+	/*OLMap.addControl(new ol.control.LayerSwitcher({
+		groupSelectStyle: 'none',
+		activationMode: 'click', 
+		target: 'map_canvas',
+	}));*/
 }
 
 function initTimers() {
@@ -202,9 +229,16 @@ function initEvents() {
 		evt.preventDefault();
 
 		const id = getNextID();
-		let sector = new SectorObject(findClosestPoint(evt.coordinate));
+		const closestPoint = findClosestPoint(evt.coordinate);
+		let sector = new SectorObject(closestPoint[1]);
 
-		sector.sectorName = "WP" + id;
+		if (closestPoint[0]) {
+			sector.sectorName = closestPoint[0];
+		}
+		else {
+			sector.sectorName = "WP" + id;
+		}
+
 		sector.id = id;
 
 		if (route.length > 0) {
@@ -291,7 +325,7 @@ function initButtons() {
 		switchSideMenu("show_available_flight_plans");
 	});
 	jQuery('#save_flight_plan').click(() => {
-		saveJsonToServer(true);
+		saveFlightPlanToServer(true);
 	});
 	jQuery('#reset_flight_plan').click(resetFlightPlan);
 	jQuery('#clear_flight_plan').click(() => {
@@ -398,19 +432,45 @@ function updateOwnshipLayer() {
 
 	ownshipSVG = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['cessna'], (airborneCount == 0) ? greenColour : 'grey', '#000000', globalScale));
 
-	ownshipStyle = new ol.style.Style({
+	styleArrey[1] = new ol.style.Style({
 		image: new ol.style.Icon({
 			scale: 2.5,
-			//imgSize: [shapes['cessna'].w, shapes['cessna'].h],
 			src: ownshipSVG,
-			rotation: toRadians(ownship.track) + OLMap.getView().getRotation(),
+			rotation: renderPars.radTrack + OLMap.getView().getRotation(),
 		}),
 		zIndex: 200,
 	});
 
+	styleArrey[3] = new ol.style.Style({
+		image: new ol.style.Icon({
+			scale: 1.4,
+			src: trackBugSVG,
+			rotation: OLMap.getView().getRotation() + ((renderPars.radDtk) ? renderPars.radDtk : renderPars.radMagVar),
+		}),
+		zIndex: 195,
+	});
+
+	styleArrey[2] = new ol.style.Style({
+		image: new ol.style.Icon({
+			scale: 1.4,
+			src: trackSVG,
+			rotation: renderPars.radTrack + OLMap.getView().getRotation(),
+		}),
+		zIndex: 200,
+	});
+
+	styleArrey[4] = new ol.style.Style({
+		image: new ol.style.Icon({
+			scale: 1.4,
+			src: compassSVG,
+			rotation: OLMap.getView().getRotation() + renderPars.radMagVar,
+		}),
+		zIndex: 190,
+	});
+
 	viewPoint.setCoordinates(ownship.mapPosition);
 	ownshipIcon = new ol.Feature(viewPoint);
-	ownshipIcon.setStyle(ownshipStyle);
+	ownshipIcon.setStyle(styleArrey);
 	ownshipSource.clear();
 	ownshipSource.addFeatures([ownshipIcon]);
 
@@ -425,7 +485,7 @@ function updateNavData() {
 
 	if (ownship.gpsAccuracy && ownship.gpsAccuracy > 10) {
 		jQuery('#gps').css('display', 'flex');
-		document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], amberColour, '#ffffff', overlayButtonSize * globalScale);
+		document.getElementById('gps').innerHTML = svgShapeToSVG(ui['satellite'], amberColour, '#ffffff', overlayButtonSize * globalScale);
 	}
 	else if (ownship.gpsAccuracy) {
 		jQuery('#gps').css('display', 'none');
@@ -611,21 +671,21 @@ async function switchSideMenu(layout) {
 			jQuery('#back_button').css('display', 'block');
 			jQuery('#menu_items').css('display', 'none');
 
-			let jsonFles = await getJsonFilesList();
+			let jsonFiles = await getJsonFilesList();
 
 			let newBody = document.createElement('div');
 			let htmlBody = document.getElementById('available_fp_items');
 			htmlBody.innerHTML = "";
 
-			if (jsonFles) {
-				for (let i = 0; i < jsonFles.length; i++) {
+			if (jsonFiles) {
+				for (let i = 0; i < jsonFiles.length; i++) {
 					const newButton = document.createElement('button');
-					newButton.innerText = jsonFles[i];
-					newButton.id = jsonFles[i];
+					newButton.innerText = jsonFiles[i];
+					newButton.id = jsonFiles[i];
 					newButton.className = "menu_button";
 					newButton.style = "background: " + blueColour;
 					newButton.addEventListener('click', () => {
-						loadJsonFromServer(jsonFles[i]);
+						loadFlightPlanFromServer(jsonFiles[i]);
 					});
 					newBody.appendChild(newButton);
 				}
@@ -716,8 +776,7 @@ function clearFlightPlan(fullClear) {
 	ownship.atd = null;
 	ownship.etd = [];
 
-	if(fullClear)
-	{
+	if (fullClear) {
 		updateRouteLayer();
 		updateValidationUI();
 		closeSideMenu();
@@ -750,16 +809,24 @@ function removeFirstWaypoint() {
 		route.shift();
 		updateRouteLayer();
 		updateValidationUI();
-		saveJsonToServer(false);
+		saveFlightPlanToServer(false);
 	}
 }
 
-function findClosestPoint(latlong) {
-	if (!snap) {
-		return latlong;
+function findClosestPoint(mapLatLong) {
+	if (!snap) return [null, mapLatLong];
+
+	const latlong = ol.proj.toLonLat(mapLatLong);
+
+	if (airpotList) {
+		for (let i = 0; i < airpotList.length; i++) {
+			if (greatCircleDistance(latlong, airpotList[i].geometry.coordinates) < 2) {
+				return [airpotList[i].icaoCode, ol.proj.fromLonLat(airpotList[i].geometry.coordinates)];
+			}
+		}
 	}
 
-	return latlong;
+	return [null, mapLatLong];
 }
 
 function generateFlightPlanTable() {
@@ -1075,12 +1142,12 @@ function toggleNorthUp() {
 	northUp = !northUp;
 
 	if (northUp) {
-		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['compass'], '#ffffff', '#000000', overlayButtonSize * globalScale);
+		document.getElementById('north_up').innerHTML = svgShapeToSVG(ui['compass'], '#ffffff', '#000000', overlayButtonSize * globalScale);
 		jQuery('#north_up svg').css('transform', 'rotate(-45deg)');
 		animateView(500);
 	}
 	else {
-		document.getElementById('north_up').innerHTML = svgShapeToSVG(shapes['plane'], '#ffffff', '#000000', overlayButtonSize * globalScale);
+		document.getElementById('north_up').innerHTML = svgShapeToSVG(ui['plane'], '#ffffff', '#000000', overlayButtonSize * globalScale);
 		animateView(500);
 	}
 
@@ -1127,13 +1194,6 @@ function updateOwnship(position) {
 		jQuery('#gs').text(getRoundText(ownship.gs));
 		jQuery('#trk').text(getThreeDigitText((ownship.track - ownship.magVar) % 360));
 
-		if (!panMode) {
-			animateView(deltaTime);
-		}
-		else {
-			updateOwnshipLayer();
-		}
-
 		if (airborneMode && !ownship.atd) {
 			ownship.atd = [localDate.getUTCHours(), localDate.getUTCMinutes() + (localDate.getUTCSeconds() / 60)];
 		}
@@ -1165,6 +1225,17 @@ function updateOwnship(position) {
 
 			ownship.prevToGoDis = ownship.toGoDis;
 		}
+
+		renderPars.radTrack = toRadians(ownship.track);
+		renderPars.radMagVar = toRadians(ownship.magVar);
+		renderPars.radDtk = (ownship.toGoDtk && route.length > 0) ? renderPars.radMagVar + toRadians(ownship.toGoDtk) : null;
+
+		if (!panMode) {
+			animateView(deltaTime);
+		}
+		else {
+			updateOwnshipLayer();
+		}
 	}
 
 	ownship.lastPosition = ownship.position;
@@ -1175,7 +1246,7 @@ function gpsError(error) {
 	navigator.geolocation.clearWatch(gpsWatchID);
 	log('Warning: ' + error.message);
 	jQuery('#gps').css('display', 'flex');
-	document.getElementById('gps').innerHTML = svgShapeToSVG(shapes['satellite'], redColour, '#ffffff', overlayButtonSize * globalScale);
+	document.getElementById('gps').innerHTML = svgShapeToSVG(ui['satellite'], redColour, '#ffffff', overlayButtonSize * globalScale);
 	ownship.gpsAccuracy = null;
 }
 
@@ -1232,27 +1303,55 @@ function animateView(duration) {
 
 function onPostrender(event) {
 	if (ownship.mapPosition) {
-		ownshipStyle = new ol.style.Style({
+		styleArrey[1] = new ol.style.Style({
 			image: new ol.style.Icon({
 				scale: 2.5,
-				//imgSize: [shapes['cessna'].w, shapes['cessna'].h],
 				src: ownshipSVG,
-				rotation: toRadians(ownship.track) + OLMap.getView().getRotation(),
+				rotation: renderPars.radTrack + OLMap.getView().getRotation(),
 			}),
 			zIndex: 200,
+		});
+
+		styleArrey[2] = new ol.style.Style({
+			image: new ol.style.Icon({
+				scale: 1.4,
+				src: trackBugSVG,
+				rotation: OLMap.getView().getRotation() + ((renderPars.radDtk) ? renderPars.radDtk : renderPars.radMagVar),
+			}),
+			zIndex: 195,
+		});
+
+		styleArrey[3] = new ol.style.Style({
+			image: new ol.style.Icon({
+				scale: 1.4,
+				src: trackSVG,
+				rotation: renderPars.radTrack + OLMap.getView().getRotation(),
+			}),
+			zIndex: 200,
+		});
+
+		styleArrey[4] = new ol.style.Style({
+			image: new ol.style.Icon({
+				scale: 1.4,
+				src: compassSVG,
+				rotation: OLMap.getView().getRotation() + renderPars.radMagVar,
+			}),
+			zIndex: 190,
 		});
 
 		viewPoint.setCoordinates(ownship.mapPosition);
 		let vectorContext = ol.getVectorContext(event);
 
 		if (simMode) {
-			ownshipIcon.setStyle(ownshipStyle);
+			ownshipIcon.setStyle(styleArrey);
 		}
 		else {
-			vectorContext.setStyle(ownshipStyle);
+			for(let i = 0; i < styleArrey.length; i++)
+			{
+				vectorContext.setStyle(styleArrey[i]);
+				vectorContext.drawGeometry(viewPoint);
+			}
 		}
-
-		vectorContext.drawGeometry(viewPoint);
 	}
 }
 
@@ -1281,7 +1380,7 @@ function getNextID() {
 	return id + 1;
 }
 
-async function saveJsonToServer(menuSave) {
+async function saveFlightPlanToServer(menuSave) {
 	try {
 		let fileName = null;
 
@@ -1323,32 +1422,31 @@ async function saveJsonToServer(menuSave) {
 	if (menuSave) closeSideMenu();
 }
 
-async function loadJsonFromServer(fileName) {
+async function loadFlightPlanFromServer(fileName) {
 	try {
 		const response = await fetch(flightPlanData + '?filename=flight_plans/' + fileName);
 
 		if (response.ok) {
-			
-			clearFlightPlan(false);			
+
+			clearFlightPlan(false);
 
 			const result = await response.json(); // Parse JSON response
 			ownship = result.ownship;
-		
+
 			for (let i = 0; i < result.route.length; ++i) {
 				let newSector = new SectorObject(result.route[i].endPoint);
 				newSector.clone(result.route[i]);
 				route.push(newSector);
 			}
-			
-			if(result.completedRoute)
-			{
+
+			if (result.completedRoute) {
 				for (let i = 0; i < result.completedRoute.length; ++i) {
 					let newSector = new SectorObject(result.completedRoute[i].endPoint);
 					newSector.clone(result.completedRoute[i]);
 					completedRoute.push(newSector);
 				}
 			}
-			
+
 			generateFlightPlanTable();
 			generateFuelPlanTable();
 			calculateFlightPlan();
@@ -1377,6 +1475,24 @@ async function getJsonFilesList() {
 		}
 		else {
 			log('Error loading data: ' + response.statusText);
+			return null;
+		}
+	}
+	catch (err) {
+		log('Error during fetch: ' + err.message);
+		return null;
+	}
+}
+
+async function loadAirportsFromServer() {
+	try {
+		const response = await fetch(flightPlanData + '?filename=nav/au_apt');
+
+		if (response.ok) {
+			airpotList = await response.json(); // Parse JSON response
+		}
+		else {
+			log('Error loading data: ' + response.statusText);
 		}
 	}
 	catch (err) {
@@ -1394,6 +1510,14 @@ function setUIScale(increase) {
 
 	document.documentElement.style.setProperty("--SCALE", globalScale);
 	localStorage.setItem("globalScale", globalScale);
+
+	compassUnderlayStyle = new ol.style.Style({
+		image: new ol.style.Circle({
+			radius: 153 * globalScale,
+			stroke: new ol.style.Stroke({ color: [255, 255, 255, 0.75], width: 35 * globalScale }),
+		}),
+		zIndex: 189,
+	});
 
 	initIcons();
 	updateRouteLayer();
