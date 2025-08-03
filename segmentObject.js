@@ -1,11 +1,11 @@
 "use strict";
 
-function SectorObject(endPoint) {
+function SectorObject(mapPoint) {
 	this.sectorName = "N/A";
 	this.id = null;
-	this.endPoint = endPoint;
-	this.latlong = ol.proj.toLonLat(endPoint);
-	this.bearing = null;
+	this.mapPoint = mapPoint;
+	this.latlong = ol.proj.toLonLat(mapPoint);
+	this.magBearing = null;
 	this.distance = null;
 	this.ias = null;
 	this.altitude = null;
@@ -16,14 +16,17 @@ function SectorObject(endPoint) {
 	this.fuelFlow = null;
 	this.fuelRequired = null;
 	this.ete = [];
+	this.endPoint = new geodesy.LatLon(this.latlong[1], this.latlong[0]);
+	this.midPoint = null;
+	this.trueBearing = null;
 }
 
 SectorObject.prototype.setNull = function () {
 	this.sectorName = null;
 	this.id = null;
-	this.endPoint = null;
+	this.mapPoint = null;
 	this.latlong = null;
-	this.bearing = null;
+	this.magBearing = null;
 	this.distance = null;
 	this.ias = null;
 	this.altitude = null;
@@ -34,14 +37,17 @@ SectorObject.prototype.setNull = function () {
 	this.fuelFlow = null;
 	this.fuelRequired = null;
 	this.ete = null;
+	this.endPoint = null;
+	this.midPoint = null;
+	this.trueBearing = null;
 }
 
 SectorObject.prototype.clone = function (copy) {
 	this.sectorName = copy.sectorName;
 	this.id = copy.id;
-	this.endPoint = copy.endPoint;
+	this.mapPoint = copy.mapPoint;
 	this.latlong = copy.latlong;
-	this.bearing = copy.bearing;
+	this.magBearing = copy.magBearing;
 	this.distance = copy.distance;
 	this.ias = copy.ias;
 	this.altitude = copy.altitude;
@@ -52,49 +58,9 @@ SectorObject.prototype.clone = function (copy) {
 	this.fuelFlow = copy.fuelFlow;
 	this.fuelRequired = copy.fuelRequired;
 	this.ete = copy.ete;
-}
-
-function greatCircleDistance(startLatLong, finishLatLong) {
-	const R = 3440.0695; // Earth's radius in nautical miles
-
-	const lat1Rad = toRadians(startLatLong[1]);
-	const lon1Rad = toRadians(startLatLong[0]);
-	const lat2Rad = toRadians(finishLatLong[1]);
-	const lon2Rad = toRadians(finishLatLong[0]);
-
-	const dlon = toRadians(finishLatLong[0] - startLatLong[0]);
-
-	const centralAngle = Math.acos(
-		Math.sin(lat1Rad) * Math.sin(lat2Rad) + Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dlon)
-	);
-
-	return R * centralAngle;
-}
-
-function calculateBearing(startLatLong, finishLatLong) {
-	// Convert latitude and longitude from degrees to radians
-	const lat1Rad = toRadians(startLatLong[1]);
-	const lon1Rad = toRadians(startLatLong[0]);
-	const lat2Rad = toRadians(finishLatLong[1]);
-	const lon2Rad = toRadians(finishLatLong[0]);
-
-	// Calculate the bearing using the formula
-	const y = Math.sin(lon2Rad - lon1Rad) * Math.cos(lat2Rad);
-	const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(lon2Rad - lon1Rad);
-	const bearingRad = Math.atan2(y, x);
-
-	return toDegrees(bearingRad) + 360;
-}
-
-function getMagVar(startLatLong, finishLatLong, isMid) {
-	// Calculate mag var
-	if (isMid) {
-		const midPoint = calculateMidPoint(startLatLong, finishLatLong);
-		return geoMag(midPoint[1], midPoint[0]).dec;
-	}
-	else {
-		return geoMag(finishLatLong[1], finishLatLong[0]).dec;
-	}
+	this.endPoint = new geodesy.LatLon(copy.endPoint._lat, copy.endPoint._lon);
+	this.midPoint = (copy.midPoint) ? new geodesy.LatLon(copy.midPoint._lat, copy.midPoint._lon) : null;
+	this.trueBearing = copy.trueBearing;
 }
 
 SectorObject.prototype.calculateWindCorrection = function () {
@@ -103,8 +69,8 @@ SectorObject.prototype.calculateWindCorrection = function () {
 	}
 
 	// Convert angles to radians
-	const windAngleRad = toRadians(this.windDir - this.bearing);
-	const crsRad = toRadians(this.bearing);
+	const windAngleRad = toRadians(this.windDir - this.magBearing);
+	const crsRad = toRadians(this.magBearing);
 
 	// Calculate the crosswind
 	const crosswind = this.windSpd * Math.sin(windAngleRad);
@@ -115,7 +81,7 @@ SectorObject.prototype.calculateWindCorrection = function () {
 	this.groundSpeed = (this.ias * Math.cos(driftAngle)) - headwind;
 
 	// Convert back to degrees and normalize to 0-360 range
-	this.heading = toDegrees(crsRad + driftAngle) % 360;
+	this.heading = normalizeAngle(toDegrees(crsRad + driftAngle));
 
 	// Calculate sector ete
 	if (this.groundSpeed > 30) {
@@ -137,7 +103,7 @@ SectorObject.prototype.calculateWind = function (course, groundspeed) {
 
 	if (headwind == 0) {
 		this.windSpd = (crosswind < 0) ? -crosswind : crosswind;
-		this.windDir = ((crosswind < 0) ? course - 90 : course + 90) % 360;
+		this.windDir = normalizeAngle((crosswind < 0) ? course - 90 : course + 90);
 	}
 	else {
 		const windAngle = Math.atan(crosswind / headwind);
@@ -145,24 +111,8 @@ SectorObject.prototype.calculateWind = function (course, groundspeed) {
 
 		this.windSpd = (speed < 0) ? -speed : speed;
 
-		this.windDir = (course + toDegrees(windAngle) + ((speed < 0) ? 180 : 0)) % 360;
+		this.windDir = normalizeAngle(course + toDegrees(windAngle) + ((speed < 0) ? 180 : 0));
 	}
-}
-
-function calculateMidPoint(startLatLog, endLatLong) {
-	const dLon = toRadians(endLatLong[0] - startLatLog[0]);
-
-	//convert to radians
-	const lat1 = toRadians(startLatLog[1]);
-	const lat2 = toRadians(endLatLong[1]);
-	const lon1 = toRadians(startLatLog[0]);
-
-	const Bx = Math.cos(lat2) * Math.cos(dLon);
-	const By = Math.cos(lat2) * Math.sin(dLon);
-	const lat3 = toDegrees(Math.atan2(Math.sin(lat1) + Math.sin(lat2), Math.sqrt((Math.cos(lat1) + Bx) * (Math.cos(lat1) + Bx) + By * By)));
-	const lon3 = toDegrees(lon1 + Math.atan2(By, Math.cos(lat1) + Bx));
-
-	return [lon3, lat3];
 }
 
 function toRadians(degrees) {
@@ -171,4 +121,14 @@ function toRadians(degrees) {
 
 function toDegrees(radians) {
 	return radians * 180 / Math.PI;
+}
+
+function normalizeAngle(angle) {
+	// Use modulo to get the angle within 0-360 (or -359 to 359)
+	let normalizedAngle = angle % 360;
+
+	// If the angle is negative, add 360 to make it positive
+	if (normalizedAngle < 0) normalizedAngle += 360;
+
+	return normalizedAngle;
 }

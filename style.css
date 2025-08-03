@@ -101,7 +101,7 @@ svg {
 }
 
 #center {
-	display: none;
+	display: flex;
 	margin-bottom: calc(0.5em * var(--SCALE));
 	border-radius: calc(0.75em * var(--SCALE)) 0 0 calc(0.75em * var(--SCALE));
 }
@@ -263,6 +263,14 @@ input {
 }
 
 #menu_flight_plan_buttons{
+	display: none;
+}
+
+#menu_nav_aids{
+	display: none;
+}
+
+#menu_adsb_traffic{
 	display: none;
 }
 

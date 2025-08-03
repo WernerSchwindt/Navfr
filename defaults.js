@@ -1,8 +1,7 @@
 "use strict";
 
 const url = "https://server.eldercodes.net"; //Change this to your server domain.
-const aircraftData = url + "/api/data/";
-const flightPlanData = url + "/navfr/api";
+const apiData = url + "/navfr/api";
 const DisplayUnits = "nautical";
 const CenterLat = -32.795;
 const CenterLon = 151.834;
@@ -16,7 +15,7 @@ const maps = [
     {id: "brisbane_vtc", name: "Brisbane VTC", url: ""},
     {id: "rockhampton_vtc", name: "Rockhampton VTC", url: ""},
     {id: "perth_vtc", name: "Perth VTC", url: ""},
-    {id: "Newcastle_vnc", name: "Newcastle VNC", url: "/geoserver/gwc/service/tms/1.0.0/ne:newcastle_vnc@WebMercatorQuad@png/{z}/{x}/{-y}.png"},
+    {id: "Newcastle_vnc", name: "Newcastle VNC", url: "/geoserver/gwc/service/tms/1.0.0/ne:world@EPSG:900913@png/{z}/{x}/{-y}.png"}, ///geoserver/gwc/service/tms/1.0.0/ne:newcastle_vnc@WebMercatorQuad@png/{z}/{x}/{-y}.png
     {id: "sydney_vnc", name: "Sydney VNC", url: ""},
     {id: "brisbane_vnc", name: "Brisbane VNC", url: ""},
     {id: "rockhampton_vnc", name: "Rockhampton VNC", url: ""},
@@ -43,6 +42,7 @@ const pointRadius = 6;
 const backgroundColour = '#262626';
 const foregroundColour = '#313131';
 const blueColour = '#0066cc';
+const purpleColour = '#6600cc';
 const greenColour = '#00cc22';
 const amberColour = '#cc9900';
 const redColour = '#cc0000';

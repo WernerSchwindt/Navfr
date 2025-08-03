@@ -17,21 +17,38 @@ app.get('/', (req, res) => {
 			return;
 		}
 
-		fs.readFile('./data/' + fileName + '.json', 'utf8', (err, data) => {
-			if (err) {
-				console.error('Error reading file:', err);
-				res.status(500).json({ error: 'Error reading ' + fileName + '.' });
-				return;
-			}
+		if (fileName != 'aircraft') {
+			fs.readFile('./data/' + fileName + '.json', 'utf8', (err, data) => {
+				if (err) {
+					console.error('Error reading '+ fileName +':', err);
+					res.status(500).json({ error: 'Error reading ' + fileName + '.' });
+					return;
+				}
 
-			try {
-				res.json(JSON.parse(data));
-			}
-			catch (parseError) {
-				console.error('Error parsing JSON:', parseError);
-				res.status(500).json({ error: 'Error parsing ' + fileName + '.' });
-			}
-		});
+				try {
+					res.json(JSON.parse(data));
+				}
+				catch (parseError) {
+					console.error('Error parsing '+ fileName +' JSON:', parseError);
+					res.status(500).json({ error: 'Error parsing ' + fileName + '.' });
+				}
+			});
+		} else {
+			fs.readFile('/run/readsb/aircraft.json', 'utf8', (err, data) => {
+				if (err) {
+					console.error('Error reading aircraft JSON:', err);
+					res.status(500).json({ error: 'Error reading aircraft.json.' });
+					return;
+				}
+
+				try {
+					res.json(JSON.parse(data));
+				}
+				catch (parseError) {
+					res.status(204).json({});
+				}
+			});
+		}
 	}
 	else {
 		res.json(fs.readdirSync('./data/flight_plans/', { withFileTypes: true }).filter(item => !item.isDirectory()).map(item => item.name.split('.')[0]));

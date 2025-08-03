@@ -5,10 +5,11 @@ let layers = null;
 let layersGroup = null;
 let OLMap = null;
 let timers = {};
-let iconLayer = null;
+let trafficLayer = null;
 let ownshipLayer = null;
 let routeSource = new ol.source.Vector();
 let ownshipSource = new ol.source.Vector();
+let trafficSource = new ol.source.Vector();
 let route = [];
 let completedRoute = [];
 let geoMag = null;
@@ -16,7 +17,6 @@ let currZoom = null;
 let snap = true;
 let flightPlanValidated = null;
 let fuelPlanValidated = null;
-let departure = null;
 let wakeLock = null;
 let ownship = {};
 let renderPars = {};
@@ -28,9 +28,12 @@ let canRemoveWaypoint = null;
 let globalScale = 1;
 let airpotList = null;
 let styleArrey = [];
+let speedSamples = [];
+let averageSpeed = null;
 
 let testMode = false;
 let simMode = false;
+let firstPosition = true;
 
 //Map settings
 let northUp = true;
@@ -43,8 +46,15 @@ let ownshipSVG = null;
 let compassSVG = null;
 let trackSVG = null;
 let trackBugSVG = null;
-
+let trafficSVG = null;
+let groundTrafficSVG = null;
+let highTrafficSVG = null;
 let ownshipIcon = null;
+
+let qnh = 1013.25;
+
+const mToNm = 0.000539957;
+const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 function initialize() {
 	if (params.get("test")) {
@@ -67,13 +77,14 @@ function initialize() {
 	initTimers();
 	initIcons();
 	initButtons();
+	initOverlaySVGs();
 
 	geoMag = geoMagFactory(cof2Obj());
 
-	ownship.position = null;
+	ownship.position = new geodesy.LatLon(0, 0);
 	ownship.mapPosition = null;
 	ownship.fixTime = null;
-	ownship.lastPosition = null;
+	ownship.lastPosition = new geodesy.LatLon(0, 0);
 	ownship.lastFixTime = null;
 	ownship.gs = null;
 	ownship.track = null;
@@ -95,18 +106,13 @@ function initialize() {
 	ownship.holdFuelFlow = 0;
 	ownship.holdDuration = 0;
 
-	
 	styleArrey[0] = new ol.style.Style({
 		image: new ol.style.Circle({
 			radius: 153 * globalScale,
 			stroke: new ol.style.Stroke({ color: [255, 255, 255, 0.8], width: 32 * globalScale }),
 		}),
-		zIndex: 189,
+		zIndex: 180,
 	});
-
-	compassSVG = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['compass_rose'], '#000000', '#000000', globalScale));
-	trackSVG = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['track'], '#000000', '#ffffff', globalScale));
-	trackBugSVG = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['track_bug'], '#000000', '#ffffff', globalScale));
 
 	airborneMode = false;
 	canRemoveWaypoint = false;
@@ -126,6 +132,7 @@ function initialize() {
 	loadAirportsFromServer();
 }
 
+/*Initiate Section */
 function initIcons() {
 	document.getElementById('center').innerHTML = svgShapeToSVG(ui['center'], '#ffffff', '#000000', overlayButtonSize * globalScale);
 	document.getElementById('north_up').innerHTML = svgShapeToSVG(ui['plane'], '#ffffff', '#000000', overlayButtonSize * globalScale);
@@ -133,14 +140,26 @@ function initIcons() {
 	document.getElementById('open_fuel_plan').innerHTML = svgShapeToSVG(ui['fuel'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('open_flight_plan').innerHTML = svgShapeToSVG(ui['takeoff'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('direct_to').innerHTML = svgShapeToSVG(ui['direct'], '#ffffff', '#000000', mainButtonSize * globalScale);
-	document.getElementById('open_traffic').innerHTML = svgShapeToSVG(ui['wifi'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('open_airport_info').innerHTML = svgShapeToSVG(ui['runway'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('open_menu').innerHTML = svgShapeToSVG(ui['bars'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('close_menu').innerHTML = svgShapeToSVG(ui['cross'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('show_menu_setting_buttons').innerHTML = svgShapeToSVG(ui['gear'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('show_menu_flight_plan_buttons').innerHTML = svgShapeToSVG(ui['route'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('show_menu_adsb_traffic').innerHTML = svgShapeToSVG(ui['wifi'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('show_menu_nav_aids').innerHTML = svgShapeToSVG(ui['vor'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('increase_ui_size').innerHTML = svgShapeToSVG(ui['plus'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('reduce_ui_size').innerHTML = svgShapeToSVG(ui['minus'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('back_button').innerHTML = svgShapeToSVG(ui['back_arrow'], '#ffffff', '#000000', mainButtonSize * globalScale);
+}
+
+function initOverlaySVGs() {
+	ownshipSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['cessna'], (airborneCount == 0) ? greenColour : 'grey', '#000000', globalScale));
+	compassSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['compass_rose'], '#000000', '#000000', globalScale));
+	trackSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['track'], '#000000', '#ffffff', globalScale));
+	trackBugSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['track_bug'], '#000000', '#ffffff', globalScale));
+	trafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], blueColour, '#000000', globalScale));
+	highTrafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], purpleColour, '#000000', globalScale));
+	groundTrafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], 'grey', '#000000', globalScale));
 }
 
 function initMap() {
@@ -173,25 +192,23 @@ function initMap() {
 		renderBuffer: 60,
 	});
 
-	/*iconLayer = new ol.layer.Vector({
-		name: 'iconLayer',
-		type: 'overlay',
-		title: 'Aircraft positions',
-		source: PlaneIconFeatures,
-		declutter: false,
-		zIndex: 200,
-		renderBuffer: renderBuffer,
-	});
-	
-	layers.push(iconLayer);*/
-
 	layers.push(ownshipLayer);
 
-	ol_map_init();
-}
+	trafficLayer = new ol.layer.Vector({
+		name: 'trafficLayer',
+		title: 'Traffic positions',
+		type: 'overlay',
+		updateWhileInteracting: true,
+		updateWhileAnimating: true,
+		source: trafficSource,
+		zIndex: 250,
+		declutter: false,
+		renderBuffer: 60,
+	});
 
-function ol_map_init() {
-	OLMap = new ol.Map({
+	layers.push(trafficLayer);
+
+		OLMap = new ol.Map({
 		target: 'map_canvas',
 		layers: layersGroup,
 		view: new ol.View({
@@ -209,12 +226,6 @@ function ol_map_init() {
 		}),
 		maxTilesLoading: 4,
 	});
-
-	/*OLMap.addControl(new ol.control.LayerSwitcher({
-		groupSelectStyle: 'none',
-		activationMode: 'click', 
-		target: 'map_canvas',
-	}));*/
 }
 
 function initTimers() {
@@ -222,6 +233,7 @@ function initTimers() {
 	updateClock();
 
 	timers.navClock = window.setInterval(updateNavData, 1000);
+	timers.adsbClock = window.setInterval(parseADSBTraffic, 1000);
 }
 
 function initEvents() {
@@ -242,14 +254,12 @@ function initEvents() {
 		sector.id = id;
 
 		if (route.length > 0) {
-			sector.distance = greatCircleDistance(route[route.length - 1].latlong, sector.latlong);
-			sector.bearing = (calculateBearing(route[route.length - 1].latlong, sector.latlong) - getMagVar(route[route.length - 1].latlong, sector.latlong, true)) % 360;
+			sector.distance = route[route.length - 1].endPoint.distanceTo(sector.endPoint) * mToNm;
+			sector.trueBearing = route[route.length - 1].endPoint.initialBearingTo(sector.endPoint);
+			sector.midPoint = route[route.length - 1].endPoint.destinationPoint(sector.distance / (mToNm * 2), sector.trueBearing);
+			sector.magBearing = normalizeAngle(sector.trueBearing - geoMag(route[route.length - 1].endPoint.lat, route[route.length - 1].endPoint.lon).dec)
 			flightPlanValidated = false;
 			fuelPlanValidated = false;
-		}
-
-		if (route.length == 0) {
-			departure = sector.sectorName;
 		}
 
 		route.push(sector);
@@ -262,8 +272,6 @@ function initEvents() {
 		if (!panMode) {
 			panMode = true;
 			jQuery('#center').css('display', 'flex');
-			stopAnimation();
-			updateOwnshipLayer();
 
 			if (northUp) {
 				jQuery('#north_up').css('display', 'none');
@@ -308,8 +316,8 @@ function initButtons() {
 	jQuery('#open_fuel_plan').click(() => {
 		openSideMenu("fuel_plan");
 	});
-	jQuery('#open_traffic').click(() => {
-		openSideMenu("traffic");
+	jQuery('#open_airport_info').click(() => {
+		openSideMenu("airport_info");
 	});
 	jQuery('#show_log').click(() => {
 		switchSideMenu("show_log");
@@ -341,6 +349,12 @@ function initButtons() {
 	jQuery('#show_menu_flight_plan_buttons').click(() => {
 		switchSideMenu("show_menu_flight_plan_buttons");
 	});
+	jQuery('#show_menu_nav_aids').click(() => {
+		switchSideMenu("show_menu_nav_aids");
+	});
+	jQuery('#show_menu_adsb_traffic').click(() => {
+		switchSideMenu("show_menu_adsb_traffic");
+	});
 	jQuery('#increase_ui_size').click(() => {
 		setUIScale(true);
 	});
@@ -357,13 +371,17 @@ function initButtons() {
 	jQuery('#toggle_snap').css('background', greenColour);
 	jQuery('#show_menu_setting_buttons').css('background', foregroundColour);
 	jQuery('#show_menu_flight_plan_buttons').css('background', backgroundColour);
+	jQuery('#show_menu_nav_aids').css('background', backgroundColour);
+	jQuery('#show_menu_adsb_traffic').css('background', backgroundColour);
 }
 
 function updateClock() {
 	date = new Date();
 	jQuery("#clock").text(getTwoDigitText(date.getUTCHours()) + ":" + getTwoDigitText(date.getUTCMinutes()) + ":" + getTwoDigitText(date.getUTCSeconds()));
 }
+/*End of Initiate Section */
 
+/*Map Layer Update Section*/
 function updateRouteLayer() {
 	let routeFeatures = [];
 
@@ -405,18 +423,41 @@ function updateRouteLayer() {
 			zIndex: 150,
 		});
 
-		const pointFeatures = new ol.Feature(new ol.geom.Point(route[i].endPoint));
+		const pointFeatures = new ol.Feature(new ol.geom.Point(route[i].mapPoint));
 		pointFeatures.setStyle(pointStyle);
 		routeFeatures.push(pointFeatures);
 	}
 
+	let routePoints = [];
+	let activeRoutePoints = [];
+	let sections = null;
+	let sectionDis = null;
+	let point = null;
+
 	if (route.length > 1) {
-		const routePoints = route.map(a => a.endPoint);
+		for (let i = route.length - 1; i > 0; --i) {
+			if (route[i].distance > 20) {
+				sections = Math.ceil(route[i].distance / 20);
+				sectionDis = route[i].distance / sections;
+
+				for (let k = sections; k > 0; k--) {
+					point = route[i-1].endPoint.destinationPoint(sectionDis * k / mToNm, route[i].trueBearing);
+					(i == 1) ? activeRoutePoints.push(ol.proj.fromLonLat([point._lon, point._lat])) : routePoints.push(ol.proj.fromLonLat([point._lon, point._lat]));
+				}
+			}
+			else {
+				(i == 1) ? activeRoutePoints.push(route[i].mapPoint) : routePoints.push(route[i].mapPoint);
+			}
+		}
+
+		activeRoutePoints.push(route[0].mapPoint);
+		routePoints.push(route[1].mapPoint);
+
 		const lineFeatures = new ol.Feature(new ol.geom.LineString(routePoints));
 		lineFeatures.setStyle(lineStyle);
 		routeFeatures.push(lineFeatures);
 
-		const activeLineFeatures = new ol.Feature(new ol.geom.LineString([route[1].endPoint, route[0].endPoint]));
+		const activeLineFeatures = new ol.Feature(new ol.geom.LineString(activeRoutePoints));
 		activeLineFeatures.setStyle(lineStyleActive);
 		routeFeatures.push(activeLineFeatures);
 	}
@@ -430,51 +471,145 @@ function updateRouteLayer() {
 
 function updateOwnshipLayer() {
 
-	ownshipSVG = 'data:image/svg+xml;utf8,' + escape(svgShapeToSVG(shapes['cessna'], (airborneCount == 0) ? greenColour : 'grey', '#000000', globalScale));
-
-	styleArrey[1] = new ol.style.Style({
-		image: new ol.style.Icon({
-			scale: 2.5,
-			src: ownshipSVG,
-			rotation: renderPars.radTrack + OLMap.getView().getRotation(),
-		}),
-		zIndex: 200,
-	});
-
-	styleArrey[3] = new ol.style.Style({
-		image: new ol.style.Icon({
-			scale: 1.4,
-			src: trackBugSVG,
-			rotation: OLMap.getView().getRotation() + ((renderPars.radDtk) ? renderPars.radDtk : renderPars.radMagVar),
-		}),
-		zIndex: 195,
-	});
-
-	styleArrey[2] = new ol.style.Style({
-		image: new ol.style.Icon({
-			scale: 1.4,
-			src: trackSVG,
-			rotation: renderPars.radTrack + OLMap.getView().getRotation(),
-		}),
-		zIndex: 200,
-	});
-
-	styleArrey[4] = new ol.style.Style({
-		image: new ol.style.Icon({
-			scale: 1.4,
-			src: compassSVG,
-			rotation: OLMap.getView().getRotation() + renderPars.radMagVar,
-		}),
-		zIndex: 190,
-	});
+	updateOverlayStyles();
 
 	viewPoint.setCoordinates(ownship.mapPosition);
 	ownshipIcon = new ol.Feature(viewPoint);
 	ownshipIcon.setStyle(styleArrey);
 	ownshipSource.clear();
 	ownshipSource.addFeatures([ownshipIcon]);
-
 }
+
+function updateTrafficLayer(aircraft) {
+
+	trafficSource.clear();
+
+	let text = null;
+	let alt = null;
+	let iconSVG = null;
+
+	for (let i = 0; i < aircraft.length; i++) {
+		text = "";
+		iconSVG = trafficSVG;
+
+		if (aircraft[i].flight) text += aircraft[i].flight.trim();
+
+		if (aircraft[i].alt_baro != 'ground') {
+			if (text != "" && (aircraft[i].gs || aircraft[i].alt_baro)) text += "\n";
+			if (aircraft[i].gs) text += Math.round(aircraft[i].gs) + " kts";
+
+			if (aircraft[i].alt_baro) {
+				alt = Number(aircraft[i].alt_baro);
+
+				if (aircraft[i].baro_rate) {
+					if (aircraft[i].baro_rate > 200) {
+						text += ' ▲';
+					}
+					else if (aircraft[i].baro_rate < -200) {
+						text += ' ▼';
+					}
+					else {
+						text += '  ';
+					}
+				}
+				else {
+					text += '  ';
+				}
+
+				if (alt < 10000) {
+					alt = (1 - Math.pow(Math.pow(1 - alt / 145366.45, 5.2553026) * 1013.25 / qnh, 0.190284)) * 145366.45;
+					text += Math.round(alt);
+				}
+				else {
+					text += ("FL" + aircraft[i].alt_baro).slice(0, 5);
+					iconSVG = highTrafficSVG;
+				}
+			}
+		}
+		else {
+			iconSVG = groundTrafficSVG;
+		}
+
+		if (text == "") text = "N/A";
+
+		const trafficIconStyle = new ol.style.Style({
+			image: new ol.style.Icon({
+				src: iconSVG,
+				rotateWithView: true,
+				rotation: (aircraft[i].track) ? toRadians(aircraft[i].track) : 0,
+				opacity: (aircraft[i].alt_baro && (alt >= 10000 || aircraft[i].alt_baro == 'ground')) ? 0.75 : 1,
+			}),
+			text: new ol.style.Text({
+				text: text,
+				fill: labelColor,
+				backgroundFill: bgFill,
+				textAlign: 'center',
+				textBaseline: 'top',
+				font: 'bold ' + (labelSize * globalScale * 0.75) + 'em ' + labelFont,
+				offsetX: 0,
+				offsetY: 25 * globalScale,
+				padding: [1 * globalScale, 17 * globalScale, -1 * globalScale, 19 * globalScale],
+			}),
+			zIndex: 250,
+		});
+
+		if (!aircraft[i].lat && !aircraft[i].lon) continue;
+
+		let trafficIcon = new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat([aircraft[i].lon, aircraft[i].lat])));
+		trafficIcon.setStyle(trafficIconStyle);
+		trafficSource.addFeatures([trafficIcon]);
+	}
+}
+
+function updateOverlayStyles() {
+	styleArrey[1] = new ol.style.Style({
+		image: new ol.style.Icon({
+			src: ownshipSVG,
+			rotateWithView: true,
+			rotation: renderPars.radTrack,
+		}),
+		text: new ol.style.Text({
+			text: getCardinalDirection(ownship.toGoDtk),
+			fill: labelColor,
+			backgroundFill: bgFill,
+			textAlign: 'center',
+			textBaseline: 'bottom',
+			font: 'bold ' + (labelSize * globalScale * 0.75) + 'em ' + labelFont,
+			offsetX: 0,
+			offsetY: 50 * globalScale,
+			padding: [1 * globalScale, 4 * globalScale, -1 * globalScale, 6 * globalScale],
+		}),
+		zIndex: 200,
+	});
+
+	styleArrey[2] = new ol.style.Style({
+		image: new ol.style.Icon({
+			src: trackBugSVG,
+			rotateWithView: true,
+			rotation: ((renderPars.radDtk) ? renderPars.radDtk : renderPars.radMagVar),
+		}),
+		zIndex: 195,
+	});
+
+	styleArrey[3] = new ol.style.Style({
+		image: new ol.style.Icon({
+			src: trackSVG,
+			rotateWithView: true,
+			rotation: renderPars.radTrack,
+		}),
+		zIndex: 200,
+	});
+
+	styleArrey[4] = new ol.style.Style({
+		image: new ol.style.Icon({
+			src: compassSVG,
+			rotateWithView: true,
+			rotation: renderPars.radMagVar,
+		}),
+		zIndex: 190,
+	});
+}
+/*End of Map Layer Update Section*/
 
 function updateNavData() {
 	let totalDistance = 0;
@@ -494,7 +629,7 @@ function updateNavData() {
 	if ((route.length > 2 && airborneMode) || (route.length > 1 && !airborneMode)) {
 		if (!flightPlanValidated) eta = [];
 
-		const track = (airborneMode) ? ownship.toGoDtk : route[1].bearing;
+		const track = (airborneMode) ? ownship.toGoDtk : route[1].magBearing;
 		const ete = (airborneMode) ? ownship.ete : route[1].ete;
 		const routeFuel = (airborneMode) ? ownship.routeFuelReq : route[1].fuelRequired;
 		totalDistance += (airborneMode) ? ownship.toGoDis : route[1].distance;
@@ -545,6 +680,19 @@ function updateNavData() {
 			jQuery('#ete').text(getTimeText(ownship.ete, false));
 		}
 	}
+}
+
+function getCardinalDirection(angle) {
+
+	if (!angle || route.length == 0) return "-";
+
+	let radial = normalizeAngle(Number(angle - 180));
+
+	if (radial === 360) radial = 0;
+
+	const index = Math.floor((radial + 22.5) / 45) % 8;
+
+	return directions[index];
 }
 
 function toggleFullScreen() {
@@ -630,9 +778,9 @@ function openSideMenu(layout) {
 
 			generateFuelPlanTable();
 			break;
-		case "traffic":
-			jQuery('#menu_title').text('ADS-B Traffic');
-			jQuery('#traffic_items').css('display', 'block');
+		case "airport_info":
+			jQuery('#menu_title').text('Airport Info');
+			jQuery('#airport_items').css('display', 'block');
 			jQuery('#menu').css('width', '100%');
 			break;
 		default:
@@ -647,15 +795,45 @@ async function switchSideMenu(layout) {
 		case "show_menu_setting_buttons":
 			jQuery('#show_menu_setting_buttons').css('background', foregroundColour);
 			jQuery('#show_menu_flight_plan_buttons').css('background', backgroundColour);
+			jQuery('#show_menu_nav_aids').css('background', backgroundColour);
+			jQuery('#show_menu_adsb_traffic').css('background', backgroundColour);
 			jQuery('#menu_setting_buttons').css('display', 'block');
 			jQuery('#menu_flight_plan_buttons').css('display', 'none');
+			jQuery('#menu_nav_aids').css('display', 'none');
+			jQuery('#menu_adsb_traffic').css('display', 'none');
 			jQuery('#back_button').css('display', 'none');
 			break;
 		case "show_menu_flight_plan_buttons":
 			jQuery('#show_menu_setting_buttons').css('background', backgroundColour);
 			jQuery('#show_menu_flight_plan_buttons').css('background', foregroundColour);
+			jQuery('#show_menu_nav_aids').css('background', backgroundColour);
+			jQuery('#show_menu_adsb_traffic').css('background', backgroundColour);
 			jQuery('#menu_setting_buttons').css('display', 'none');
 			jQuery('#menu_flight_plan_buttons').css('display', 'block');
+			jQuery('#menu_nav_aids').css('display', 'none');
+			jQuery('#menu_adsb_traffic').css('display', 'none');
+			jQuery('#back_button').css('display', 'none');
+			break;
+		case "show_menu_nav_aids":
+			jQuery('#show_menu_setting_buttons').css('background', backgroundColour);
+			jQuery('#show_menu_flight_plan_buttons').css('background', backgroundColour);
+			jQuery('#show_menu_nav_aids').css('background', foregroundColour);
+			jQuery('#show_menu_adsb_traffic').css('background', backgroundColour);
+			jQuery('#menu_setting_buttons').css('display', 'none');
+			jQuery('#menu_flight_plan_buttons').css('display', 'none');
+			jQuery('#menu_nav_aids').css('display', 'block');
+			jQuery('#menu_adsb_traffic').css('display', 'none');
+			jQuery('#back_button').css('display', 'none');
+			break;
+		case "show_menu_adsb_traffic":
+			jQuery('#show_menu_setting_buttons').css('background', backgroundColour);
+			jQuery('#show_menu_flight_plan_buttons').css('background', backgroundColour);
+			jQuery('#show_menu_nav_aids').css('background', backgroundColour);
+			jQuery('#show_menu_adsb_traffic').css('background', foregroundColour);
+			jQuery('#menu_setting_buttons').css('display', 'none');
+			jQuery('#menu_flight_plan_buttons').css('display', 'none');
+			jQuery('#menu_nav_aids').css('display', 'none');
+			jQuery('#menu_adsb_traffic').css('display', 'block');
 			jQuery('#back_button').css('display', 'none');
 			break;
 		case "show_log":
@@ -748,15 +926,6 @@ function removeLastWaypoint() {
 		calculateFlightPlan();
 		calculateFuelPlan();
 		closeSideMenu();
-
-		if (route.length < 2) {
-			resetUI();
-			departure = null;
-		}
-
-		if (route.length == 0) {
-			departure = null;
-		}
 	}
 }
 
@@ -772,7 +941,6 @@ function clearFlightPlan(fullClear) {
 	}
 	route = [];
 	completedRoute = [];
-	departure = null;
 	ownship.atd = null;
 	ownship.etd = [];
 
@@ -787,7 +955,7 @@ function clearFlightPlan(fullClear) {
 
 function resetFlightPlan() {
 	for (let i = completedRoute.length - 1; i >= 0; --i) {
-		let sector = new SectorObject(completedRoute[i].endPoint);
+		let sector = new SectorObject(completedRoute[i].mapPoint);
 		sector.clone(completedRoute[i]);
 		route.unshift(sector);
 		completedRoute[i].setNull();
@@ -795,6 +963,10 @@ function resetFlightPlan() {
 
 	completedRoute = [];
 	ownship.atd = null;
+
+	jQuery('#atd').css('display', 'none');
+	jQuery('#etd_input').css('display', 'inline-block');
+
 	updateRouteLayer();
 	updateValidationUI();
 	closeSideMenu();
@@ -802,7 +974,7 @@ function resetFlightPlan() {
 
 function removeFirstWaypoint() {
 	if (route.length > 1) {
-		let sector = new SectorObject(route[0].endPoint);
+		let sector = new SectorObject(route[0].mapPoint);
 		sector.clone(route[0]);
 		completedRoute.push(sector);
 		route[0].setNull();
@@ -816,11 +988,16 @@ function removeFirstWaypoint() {
 function findClosestPoint(mapLatLong) {
 	if (!snap) return [null, mapLatLong];
 
-	const latlong = ol.proj.toLonLat(mapLatLong);
+	const longlat = ol.proj.toLonLat(mapLatLong);
+	const point = new geodesy.LatLon(longlat[1], longlat[0]);
+	let point2 = new geodesy.LatLon(0,0);
 
 	if (airpotList) {
 		for (let i = 0; i < airpotList.length; i++) {
-			if (greatCircleDistance(latlong, airpotList[i].geometry.coordinates) < 2) {
+			point2.lat = airpotList[i].geometry.coordinates[1];
+			point2.lon = airpotList[i].geometry.coordinates[0];
+
+			if (point.distanceTo(point2) * mToNm < 2) {
 				return [airpotList[i].icaoCode, ol.proj.fromLonLat(airpotList[i].geometry.coordinates)];
 			}
 		}
@@ -845,7 +1022,7 @@ function generateFlightPlanTable() {
 	let eta = [];
 
 	if (route.length > 0) {
-		jQuery('#departure').text(departure);
+		jQuery('#departure').text((completedRoute.length > 0) ? completedRoute[0].sectorName : route[0].sectorName);
 		jQuery('#destination').text(route[route.length - 1].sectorName);
 	}
 
@@ -878,7 +1055,7 @@ function generateFlightPlanTable() {
 				}
 			}
 
-			course = '<td class="mid_font">' + getThreeDigitText(route[i].bearing) + '</td>';
+			course = '<td class="mid_font">' + getThreeDigitText(route[i].magBearing) + '</td>';
 			windDir = '<td><input type="number"  class="mid_font" id="' + route[i].id + '_wind_dir" value="' + getThreeDigitText(route[i].windDir) + '" min="1" max="360"></td>';
 			windSpd = '<td><input type="number"  class="mid_font" id="' + route[i].id + '_wind_spd" value="' + getRoundText(route[i].windSpd) + '" min="0"></td>';
 			heading = '<td class="mid_font">' + getThreeDigitText(route[i].heading) + '</td>';
@@ -1105,7 +1282,11 @@ function getTwoDigitText(value) {
 }
 
 function getThreeDigitText(value) {
-	return (value == null) ? "" : ('00' + Math.round(value)).slice(-3);
+	if (value == null) return "";
+
+	let val = ('00' + Math.round(value)).slice(-3);
+
+	return (val == "000") ? "360" : val;
 }
 
 function getFourDigitText(value, nullString) {
@@ -1153,28 +1334,33 @@ function toggleNorthUp() {
 
 	if (ownship.track && panMode && northUp) {
 		OLMap.getView().setRotation(0);
-		updateOwnshipLayer();
 		jQuery('#north_up').css('display', 'none');
 	}
 }
 
 function updateOwnship(position) {
 	if (position.coords != null) {
-		ownship.position = [position.coords.longitude, position.coords.latitude];
+		ownship.position.lat = position.coords.latitude;
+		ownship.position.lon = position.coords.longitude;
 	}
 	else {
-		ownship.position = position;
+		ownship.position.lat = position[1];
+		ownship.position.lon = position[0];
 	}
 
 	let localDate = new Date();
 	ownship.fixTime = localDate.getTime();
 
-	if (ownship.lastPosition != null) {
+	if (!firstPosition) {
 		let deltaTime = ownship.fixTime - ownship.lastFixTime;
-		ownship.gs = greatCircleDistance(ownship.lastPosition, ownship.position) * 3600000 / deltaTime;
-		ownship.track = calculateBearing(ownship.lastPosition, ownship.position);
-		ownship.magVar = getMagVar(ownship.lastPosition, ownship.position, false);
-		ownship.mapPosition = ol.proj.fromLonLat(ownship.position);
+		ownship.gs = ownship.lastPosition.distanceTo(ownship.position) * mToNm * 3600000 / deltaTime;
+		ownship.track = ownship.lastPosition.initialBearingTo(ownship.position);
+		ownship.magVar = geoMag(ownship.position.lat, ownship.position.lon).dec;
+		ownship.mapPosition = ol.proj.fromLonLat([ownship.position.lon, ownship.position.lat]);
+
+		speedSamples[speedSamples.length] = ownship.gs;
+
+		if (speedSamples.length > 30) speedSamples.shift();
 
 		if (position.coords) ownship.gpsAccuracy = position.coords.accuracy;
 
@@ -1184,7 +1370,8 @@ function updateOwnship(position) {
 			airborneMode = true;
 
 			jQuery('#north_up').css('display', 'flex');
-			startAnimation();
+			initOverlaySVGs();
+			centerMap();
 		}
 
 		if (ownship.gs > 30 && airborneCount > 0) {
@@ -1192,7 +1379,7 @@ function updateOwnship(position) {
 		}
 
 		jQuery('#gs').text(getRoundText(ownship.gs));
-		jQuery('#trk').text(getThreeDigitText((ownship.track - ownship.magVar) % 360));
+		jQuery('#trk').text(getThreeDigitText(normalizeAngle(ownship.track - ownship.magVar)));
 
 		if (airborneMode && !ownship.atd) {
 			ownship.atd = [localDate.getUTCHours(), localDate.getUTCMinutes() + (localDate.getUTCSeconds() / 60)];
@@ -1201,9 +1388,18 @@ function updateOwnship(position) {
 		if (airborneMode && route.length > 0) {
 			let point = (route.length == 1) ? 0 : 1;
 
-			ownship.toGoDis = greatCircleDistance(ownship.position, route[point].latlong);
-			ownship.toGoDtk = (calculateBearing(ownship.position, route[point].latlong) - getMagVar(ownship.position, route[point].latlong, true)) % 360;
-			ownship.toGs = Math.max(10, ownship.gs * Math.cos(toRadians(ownship.track - ownship.magVar - ownship.toGoDtk)));
+			ownship.toGoDis = ownship.position.distanceTo(route[point].endPoint) * mToNm;
+			ownship.toGoDtk = normalizeAngle(ownship.position.initialBearingTo(route[point].endPoint) - ownship.magVar);
+
+			averageSpeed = 0;
+
+			for (let i = 0; i < speedSamples.length; i++) {
+				averageSpeed += speedSamples[i];
+			}
+
+			averageSpeed = averageSpeed / speedSamples.length;
+
+			ownship.toGs = Math.max(10, averageSpeed * Math.cos(toRadians(ownship.track - ownship.magVar - ownship.toGoDtk)));
 
 			getClosingTime();
 
@@ -1212,7 +1408,7 @@ function updateOwnship(position) {
 				ownship.totalFuel -= route[point].fuelFlow * deltaTime / 3600000;
 			}
 
-			const headingDiff = Math.abs(ownship.toGoDtk - ownship.track) % 360;
+			const headingDiff = Math.abs(ownship.toGoDtk - (ownship.track - ownship.magVar)) % 360;
 
 			if (((headingDiff > 180) ? 360 - headingDiff : headingDiff) < 90 && !canRemoveWaypoint) {
 				canRemoveWaypoint = true;
@@ -1233,13 +1429,15 @@ function updateOwnship(position) {
 		if (!panMode) {
 			animateView(deltaTime);
 		}
-		else {
-			updateOwnshipLayer();
-		}
+
+		updateOwnshipLayer();
 	}
 
-	ownship.lastPosition = ownship.position;
+	ownship.lastPosition.lat = ownship.position.lat;
+	ownship.lastPosition.lon = ownship.position.lon;
 	ownship.lastFixTime = ownship.fixTime;
+
+	if(firstPosition) firstPosition = false;
 }
 
 function gpsError(error) {
@@ -1251,13 +1449,13 @@ function gpsError(error) {
 }
 
 function centerMap() {
-	panMode = false;
-	jQuery('#center').css('display', 'none');
-	jQuery('#north_up').css('display', 'flex');
+	if (airborneMode) {
+		panMode = false;
+		jQuery('#center').css('display', 'none');
+		jQuery('#north_up').css('display', 'flex');
+	}
 
-	startAnimation();
 	animateView(500);
-
 }
 
 function getClosingTime() {
@@ -1289,85 +1487,16 @@ function log(string) {
 }
 
 function animateView(duration) {
-	if (!ownship.position && !ownship.track) return;
+	if (!firstPosition && !ownship.track) return;
 
 	OLMap.getView().cancelAnimations();
 	OLMap.getView().animate(
 		{
-			center: ol.proj.fromLonLat([ownship.position[0], ownship.position[1]]),
-			rotation: (northUp) ? 0 : toRadians(-ownship.track),
+			center: ownship.mapPosition,
+			rotation: (northUp) ? 0 : -renderPars.radTrack,
 			duration: duration,
 		},
 	);
-}
-
-function onPostrender(event) {
-	if (ownship.mapPosition) {
-		styleArrey[1] = new ol.style.Style({
-			image: new ol.style.Icon({
-				scale: 2.5,
-				src: ownshipSVG,
-				rotation: renderPars.radTrack + OLMap.getView().getRotation(),
-			}),
-			zIndex: 200,
-		});
-
-		styleArrey[2] = new ol.style.Style({
-			image: new ol.style.Icon({
-				scale: 1.4,
-				src: trackBugSVG,
-				rotation: OLMap.getView().getRotation() + ((renderPars.radDtk) ? renderPars.radDtk : renderPars.radMagVar),
-			}),
-			zIndex: 195,
-		});
-
-		styleArrey[3] = new ol.style.Style({
-			image: new ol.style.Icon({
-				scale: 1.4,
-				src: trackSVG,
-				rotation: renderPars.radTrack + OLMap.getView().getRotation(),
-			}),
-			zIndex: 200,
-		});
-
-		styleArrey[4] = new ol.style.Style({
-			image: new ol.style.Icon({
-				scale: 1.4,
-				src: compassSVG,
-				rotation: OLMap.getView().getRotation() + renderPars.radMagVar,
-			}),
-			zIndex: 190,
-		});
-
-		viewPoint.setCoordinates(ownship.mapPosition);
-		let vectorContext = ol.getVectorContext(event);
-
-		if (simMode) {
-			ownshipIcon.setStyle(styleArrey);
-		}
-		else {
-			for(let i = 0; i < styleArrey.length; i++)
-			{
-				vectorContext.setStyle(styleArrey[i]);
-				vectorContext.drawGeometry(viewPoint);
-			}
-		}
-	}
-}
-
-function startAnimation() {
-	if (animate) return;
-
-	if (!simMode) ownshipIcon.setGeometry(null);
-	ownshipLayer.on('postrender', onPostrender);
-	animate = true;
-}
-
-function stopAnimation() {
-	if (!animate) return;
-
-	ownshipLayer.un('postrender', onPostrender);
-	animate = false;
 }
 
 function getNextID() {
@@ -1400,7 +1529,7 @@ async function saveFlightPlanToServer(menuSave) {
 
 		if (!fileName) return;
 
-		const response = await fetch(flightPlanData + '?filename=' + fileName, {
+		const response = await fetch(apiData + '?filename=' + fileName, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -1424,24 +1553,38 @@ async function saveFlightPlanToServer(menuSave) {
 
 async function loadFlightPlanFromServer(fileName) {
 	try {
-		const response = await fetch(flightPlanData + '?filename=flight_plans/' + fileName);
+		const response = await fetch(apiData + '?filename=flight_plans/' + fileName);
 
 		if (response.ok) {
-
 			clearFlightPlan(false);
 
 			const result = await response.json(); // Parse JSON response
-			ownship = result.ownship;
 
-			for (let i = 0; i < result.route.length; ++i) {
-				let newSector = new SectorObject(result.route[i].endPoint);
-				newSector.clone(result.route[i]);
-				route.push(newSector);
+			if(result.ownship)
+			{
+				ownship.atd = result.ownship.atd;
+				ownship.etd = result.ownship.etd;
+				ownship.totalFuel = result.ownship.totalFuel ;
+				ownship.routeFuelReq = result.ownship.routeFuelReq;
+				ownship.reserveFuel = result.ownship.reserveFuel;
+				ownship.reserveFuelFlow = result.ownship.reserveFuelFlow;
+				ownship.reserveDuration = result.ownship.reserveDuration;
+				ownship.holdFuel = result.ownship.holdFuel;
+				ownship.holdFuelFlow = result.ownship.holdFuelFlow;
+				ownship.holdDuration = result.ownship.holdDuration;
+			}
+
+			if (result.route) {
+				for (let i = 0; i < result.route.length; ++i) {
+					let newSector = new SectorObject(result.route[i].mapPoint);
+					newSector.clone(result.route[i]);
+					route.push(newSector);
+				}
 			}
 
 			if (result.completedRoute) {
 				for (let i = 0; i < result.completedRoute.length; ++i) {
-					let newSector = new SectorObject(result.completedRoute[i].endPoint);
+					let newSector = new SectorObject(result.completedRoute[i].mapPoint);
 					newSector.clone(result.completedRoute[i]);
 					completedRoute.push(newSector);
 				}
@@ -1468,7 +1611,7 @@ async function loadFlightPlanFromServer(fileName) {
 
 async function getJsonFilesList() {
 	try {
-		const response = await fetch(flightPlanData);
+		const response = await fetch(apiData);
 
 		if (response.ok) {
 			return await response.json(); // Parse JSON response
@@ -1486,7 +1629,7 @@ async function getJsonFilesList() {
 
 async function loadAirportsFromServer() {
 	try {
-		const response = await fetch(flightPlanData + '?filename=nav/au_apt');
+		const response = await fetch(apiData + '?filename=nav/au_apt');
 
 		if (response.ok) {
 			airpotList = await response.json(); // Parse JSON response
@@ -1511,17 +1654,39 @@ function setUIScale(increase) {
 	document.documentElement.style.setProperty("--SCALE", globalScale);
 	localStorage.setItem("globalScale", globalScale);
 
-	compassUnderlayStyle = new ol.style.Style({
+	styleArrey[0] = new ol.style.Style({
 		image: new ol.style.Circle({
 			radius: 153 * globalScale,
-			stroke: new ol.style.Stroke({ color: [255, 255, 255, 0.75], width: 35 * globalScale }),
+			stroke: new ol.style.Stroke({ color: [255, 255, 255, 0.8], width: 32 * globalScale }),
 		}),
-		zIndex: 189,
+		zIndex: 180,
 	});
 
 	initIcons();
+	initOverlaySVGs();
 	updateRouteLayer();
 	jQuery('#zoom').text(getDecimalText(globalScale));
+}
+
+async function parseADSBTraffic() {
+	try {
+		const response = await fetch(apiData + '?filename=aircraft');
+
+		if (response.ok) {
+			const result = await response.json(); // Parse JSON response
+
+			if (result.aircraft) {
+				updateTrafficLayer(result.aircraft);
+			}
+		}
+		else {
+			log('Error loading data: ' + response.statusText);
+			trafficSource.clear();
+		}
+	}
+	catch (err) {
+		log('Error during fetch: ' + err.message);
+	}
 }
 
 initialize();
