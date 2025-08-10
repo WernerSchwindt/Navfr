@@ -34,6 +34,7 @@ const labelColor = new ol.style.Fill({ color: 'white' });
 const bgFill = new ol.style.Fill({ color: 'rgba(0, 0, 0, 0.6)' });
 const routeWidth = 5;
 const activeRouteWidth = 7;
+const vectorWidth = 1.5;
 const routeColor = 'black';
 const activeRouteColor = '#FD3DB5';
 const pointColor = new ol.style.Fill({ color: routeColor });

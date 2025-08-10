@@ -6,7 +6,7 @@
 	<title>NaVFR</title>
 	<link href="style.css" rel="stylesheet" type="text/css" />
 	<link href="libs\ol.css" rel="stylesheet" type="text/css" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
 </head>
 
 <body>
@@ -110,7 +110,7 @@
 					<div><button class="menu_button" id="toggle_fullscreen">Enter Fullscreen</button></div>
 					<div><button class="menu_button" id="toggle_snap">Waypoint Snap: On</button></div>
 					<div><button class="menu_button" id="show_log">Error Log</button></div><br>
-					<div id="zoom_ui"><button class="ui_button" id="reduce_ui_size"></button><div id="zoom_text"><span class="mid_font">UI Scale: </span><span class="mid_font" id="zoom">1.0</span></div><button class="ui_button" id="increase_ui_size"></button></div>
+					<div class="increase_decrease_ui"><button class="ui_button" id="reduce_ui_size"></button><div id="zoom_text"><span class="mid_font">UI Scale: </span><span class="mid_font" id="zoom">1.0</span></div><button class="ui_button" id="increase_ui_size"></button></div>
 				</div>
 				<div id="menu_flight_plan_buttons" class="menu_area">
 					<div><button class="menu_button" id="remove_last_waypoint">Remove Last Waypoint</button></div><br>
@@ -120,13 +120,30 @@
 					<div><button class="menu_button" id="clear_flight_plan">Clear Flight Plan</button></div>
 				</div>	
 				<div id="menu_nav_aids" class="menu_area">
-					<div><button class="menu_button" id="set_dme_1">Nav Aid 1: </button></div>
-					<div><button class="menu_button" id="clear_dme_1">Clear Nav Aid 2 1</button></div><br>
-					<div><button class="menu_button" id="set_dme_2">Nav Aid 1 2: </button></div>
-					<div><button class="menu_button" id="clear_dme_2">Clear Nav Aid 2 2</button></div><br>
+					<div><button class="menu_button" id="set_dme_1">Nav Aid 1: Not Set</button></div>
+					<div><button class="menu_button" id="clear_dme_1">Clear Nav Aid 2</button></div><br>
+					<div><button class="menu_button" id="set_dme_2">Nav Aid 1 2: Not Set</button></div>
+					<div><button class="menu_button" id="clear_dme_2">Clear Nav Aid 2</button></div><br>
 				</div>	
 				<div id="menu_adsb_traffic" class="menu_area">
-					<div id="zoom_ui"><button class="ui_button" id="reduce_qnh"></button><div ><span class="mid_font">QNH: </span><span class="mid_font" id="zoom">1.0</span></div><button class="ui_button" id="increase_ui_size"></button></div>
+					<div class="increase_decrease_ui"><button class="ui_button" id="reduce_qnh"></button><div id="qnh_text"><span class="mid_font">QNH: </span><span class="mid_font" id="qnh">1013</span></div><button class="ui_button" id="increase_qnh"></button></div>
+					<div class="table_scroll" id="adsb_traffic_table_scroll">
+						<table id='adsb_traffic_table' class="side_table">
+							<thead>
+								<tr>
+									<td class="mid_font">HEX ID</td>
+									<td class="mid_font">CALLSIGN</td>
+									<td class="mid_font">SQUAWK</td>
+									<td class="mid_font">Track (°T)</td>
+									<td class="mid_font">ALT (ft)</td>
+									<td class="mid_font">GS (kts)</td>
+									<td class="mid_font">RSSI</td>
+								</tr>
+							</thead>
+							<tbody>
+							</tbody>
+						</table>
+					</div>
 				</div>		
 			</div>
 			<div id="flight_items">
@@ -140,9 +157,9 @@
 					<div><span class="mid_font">Arrival Time: </span><span class="mid_font"
 							id="fp_eta">00:00</span><span class="mid_font" id="fp_eta"> z</span></div>
 				</div>
-				<div id="flight_table_scroll">
-					<table id='flight_table'>
-						<thead class="table_header">
+				<div class="table_scroll" id="flight_table_scroll">
+					<table id='flight_table' class="side_table">
+						<thead>
 							<tr>
 								<td class="mid_font">WP NAME</td>
 								<td class="mid_font">ALT (ft)</td>
@@ -174,9 +191,9 @@
 					<div><span class="mid_font">Fuel Required: </span><span class="mid_font"
 							id="required_fuel">-.-</span><span class="mid_font"> gal</span></div>
 				</div>
-				<div id="fuel_table_scroll">
-					<table id='fuel_table'>
-						<thead class="table_header">
+				<div class="table_scroll" id="fuel_table_scroll">
+					<table id='fuel_table' class="side_table">
+						<thead>
 							<tr>
 								<td class="mid_font">WP NAME</td>
 								<td class="mid_font">ALT (ft)</td>
@@ -218,6 +235,7 @@
 	<script src="libs/jquery-3.7.1.min.js"></script>
 	<script src="libs/geomag2020.js"></script>
 	<script src="libs/geodesy-custom-2.3.0.js"></script>
+	<script src="libs/nosleep-0.12.0.min.js"></script>
 	<script src="defaults.js"></script>
 	<script src="layers.js"></script>
 	<script src="shapes.js"></script>

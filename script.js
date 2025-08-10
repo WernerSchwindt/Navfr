@@ -17,12 +17,11 @@ let currZoom = null;
 let snap = true;
 let flightPlanValidated = null;
 let fuelPlanValidated = null;
-let wakeLock = null;
+const noSleep = new NoSleep();
 let ownship = {};
 let renderPars = {};
 let gpsWatchID = null;
 let ownshipShape = null;
-let airborneCount = 3;
 let airborneMode = null;
 let canRemoveWaypoint = null;
 let globalScale = 1;
@@ -33,7 +32,6 @@ let averageSpeed = null;
 
 let testMode = false;
 let simMode = false;
-let firstPosition = true;
 
 //Map settings
 let northUp = true;
@@ -50,11 +48,16 @@ let trafficSVG = null;
 let groundTrafficSVG = null;
 let highTrafficSVG = null;
 let ownshipIcon = null;
+let updateTrafficTableAllowed = false;
+let faultCounter = 60;
 
 let qnh = 1013.25;
 
 const mToNm = 0.000539957;
 const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+
+const trafficWorker = new Worker("trafficWorker.js");
+const ownshipWorker = new Worker("ownshipWorker.js");
 
 function initialize() {
 	if (params.get("test")) {
@@ -69,8 +72,13 @@ function initialize() {
 		globalScale = Number(localStorage.getItem("globalScale"));
 	}
 
+	if (localStorage.getItem("QNH")) {
+		qnh = Number(localStorage.getItem("QNH"));
+	}
+
 	document.documentElement.style.setProperty("--SCALE", globalScale);
 	jQuery('#zoom').text(getDecimalText(globalScale));
+	jQuery('#qnh').text(Math.round(qnh));
 
 	initMap();
 	initEvents();
@@ -83,14 +91,10 @@ function initialize() {
 
 	ownship.position = new geodesy.LatLon(0, 0);
 	ownship.mapPosition = null;
-	ownship.fixTime = null;
-	ownship.lastPosition = new geodesy.LatLon(0, 0);
-	ownship.lastFixTime = null;
 	ownship.gs = null;
 	ownship.track = null;
 	ownship.magVar = null;
 	ownship.toGoDis = null;
-	ownship.prevToGoDis = null;
 	ownship.toGoDtk = null;
 	ownship.toGs = null;
 	ownship.atd = null;
@@ -124,7 +128,7 @@ function initialize() {
 			maximumAge: 0,
 		};
 
-		gpsWatchID = navigator.geolocation.watchPosition(updateOwnship, gpsError, options);
+		gpsWatchID = navigator.geolocation.watchPosition(updateOwnshipWorker, gpsFault, options);
 	}
 
 	if (localStorage.getItem("currentFlightPlan")) loadFlightPlanFromServer(localStorage.getItem("currentFlightPlan"));
@@ -149,15 +153,17 @@ function initIcons() {
 	document.getElementById('show_menu_nav_aids').innerHTML = svgShapeToSVG(ui['vor'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('increase_ui_size').innerHTML = svgShapeToSVG(ui['plus'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('reduce_ui_size').innerHTML = svgShapeToSVG(ui['minus'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('increase_qnh').innerHTML = svgShapeToSVG(ui['plus'], '#ffffff', '#000000', mainButtonSize * globalScale);
+	document.getElementById('reduce_qnh').innerHTML = svgShapeToSVG(ui['minus'], '#ffffff', '#000000', mainButtonSize * globalScale);
 	document.getElementById('back_button').innerHTML = svgShapeToSVG(ui['back_arrow'], '#ffffff', '#000000', mainButtonSize * globalScale);
 }
 
 function initOverlaySVGs() {
-	ownshipSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['cessna'], (airborneCount == 0) ? greenColour : 'grey', '#000000', globalScale));
+	ownshipSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['cessna'], (airborneMode) ? greenColour : 'grey', '#000000', globalScale));
 	compassSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['compass_rose'], '#000000', '#000000', globalScale));
 	trackSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['track'], '#000000', '#ffffff', globalScale));
 	trackBugSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['track_bug'], '#000000', '#ffffff', globalScale));
-	trafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], blueColour, '#000000', globalScale));
+	trafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], redColour, '#000000', globalScale));
 	highTrafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], purpleColour, '#000000', globalScale));
 	groundTrafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], 'grey', '#000000', globalScale));
 }
@@ -171,7 +177,7 @@ function initMap() {
 		title: 'Route Layer',
 		type: 'overlay',
 		source: routeSource,
-		updateWhileInteracting: true,
+		updateWhileInteracting: false,
 		updateWhileAnimating: true,
 		zIndex: 150,
 		declutter: false,
@@ -184,7 +190,7 @@ function initMap() {
 		name: 'ownshipLayer',
 		title: 'Ownship position',
 		type: 'overlay',
-		updateWhileInteracting: true,
+		updateWhileInteracting: false,
 		updateWhileAnimating: true,
 		source: ownshipSource,
 		zIndex: 200,
@@ -198,7 +204,7 @@ function initMap() {
 		name: 'trafficLayer',
 		title: 'Traffic positions',
 		type: 'overlay',
-		updateWhileInteracting: true,
+		updateWhileInteracting: false,
 		updateWhileAnimating: true,
 		source: trafficSource,
 		zIndex: 250,
@@ -208,7 +214,7 @@ function initMap() {
 
 	layers.push(trafficLayer);
 
-		OLMap = new ol.Map({
+	OLMap = new ol.Map({
 		target: 'map_canvas',
 		layers: layersGroup,
 		view: new ol.View({
@@ -233,7 +239,9 @@ function initTimers() {
 	updateClock();
 
 	timers.navClock = window.setInterval(updateNavData, 1000);
-	timers.adsbClock = window.setInterval(parseADSBTraffic, 1000);
+	timers.adsbClock = window.setInterval(() => {
+		trafficWorker.postMessage({ "simMode": simMode, "api": apiData, "ownshipPos": ownship.position, "qnh": qnh });
+	}, 1000);
 }
 
 function initEvents() {
@@ -281,8 +289,7 @@ function initEvents() {
 
 	if (testMode) {
 		OLMap.on('click', function (evt) {
-			updateOwnship(ol.proj.toLonLat(evt.coordinate));
-
+			updateOwnshipWorker(ol.proj.toLonLat(evt.coordinate));
 		});
 	}
 
@@ -290,7 +297,7 @@ function initEvents() {
 		if (!document.fullscreenElement) {
 			jQuery('#toggle_fullscreen').text('Enter Fullscreen');
 			jQuery('#toggle_fullscreen').css('background', '#0059b3');
-			releaseWakeLock();
+			noSleep.disable();
 		}
 	});
 
@@ -304,7 +311,7 @@ function initEvents() {
 				return; // Ignore messages from unknown origins
 			}
 
-			updateOwnship(event.data);
+			updateOwnshipWorker(event.data);
 		});
 	}
 }
@@ -326,7 +333,7 @@ function initButtons() {
 		openSideMenu(null);
 	});
 	jQuery('#close_menu').click(closeSideMenu);
-	jQuery('#toggle_fullscreen').click(toggleFullScreen);
+	jQuery('#toggle_fullscreen').click(toggleFullscreen);
 	jQuery('#toggle_snap').click(toggleSnap);
 	jQuery('#remove_last_waypoint').click(removeLastWaypoint);
 	jQuery('#load_flight_plan').click(() => {
@@ -364,6 +371,12 @@ function initButtons() {
 	jQuery('#back_button').click(() => {
 		closeSideMenu();
 		openSideMenu(null);
+	});
+	jQuery('#increase_qnh').click(() => {
+		adjustQNH(true);
+	});
+	jQuery('#reduce_qnh').click(() => {
+		adjustQNH(false);
 	});
 
 	jQuery('.ui_button').css('background', blueColour);
@@ -441,7 +454,7 @@ function updateRouteLayer() {
 				sectionDis = route[i].distance / sections;
 
 				for (let k = sections; k > 0; k--) {
-					point = route[i-1].endPoint.destinationPoint(sectionDis * k / mToNm, route[i].trueBearing);
+					point = route[i - 1].endPoint.destinationPoint(sectionDis * k / mToNm, route[i].trueBearing);
 					(i == 1) ? activeRoutePoints.push(ol.proj.fromLonLat([point._lon, point._lat])) : routePoints.push(ol.proj.fromLonLat([point._lon, point._lat]));
 				}
 			}
@@ -484,63 +497,48 @@ function updateTrafficLayer(aircraft) {
 
 	trafficSource.clear();
 
-	let text = null;
-	let alt = null;
+	let label = null;
 	let iconSVG = null;
+	let trafficIconFeatures = [];
+
+	const lineStyle = new ol.style.Style({
+		stroke: new ol.style.Stroke({
+			color: routeColor,
+			width: vectorWidth * globalScale,
+		}),
+		zIndex: 240,
+	});
 
 	for (let i = 0; i < aircraft.length; i++) {
-		text = "";
+		if (!aircraft[i].mapLonLat) continue;
+
+		label = "";
 		iconSVG = trafficSVG;
 
-		if (aircraft[i].flight) text += aircraft[i].flight.trim();
+		if (aircraft[i].flight) label += aircraft[i].flight;
 
-		if (aircraft[i].alt_baro != 'ground') {
-			if (text != "" && (aircraft[i].gs || aircraft[i].alt_baro)) text += "\n";
-			if (aircraft[i].gs) text += Math.round(aircraft[i].gs) + " kts";
+		if (aircraft[i].alt_baro != 'Ground') {
+			if (label != "" && aircraft[i].alt_baro) label += "\n";
 
 			if (aircraft[i].alt_baro) {
-				alt = Number(aircraft[i].alt_baro);
-
-				if (aircraft[i].baro_rate) {
-					if (aircraft[i].baro_rate > 200) {
-						text += ' ▲';
-					}
-					else if (aircraft[i].baro_rate < -200) {
-						text += ' ▼';
-					}
-					else {
-						text += '  ';
-					}
-				}
-				else {
-					text += '  ';
-				}
-
-				if (alt < 10000) {
-					alt = (1 - Math.pow(Math.pow(1 - alt / 145366.45, 5.2553026) * 1013.25 / qnh, 0.190284)) * 145366.45;
-					text += Math.round(alt);
-				}
-				else {
-					text += ("FL" + aircraft[i].alt_baro).slice(0, 5);
-					iconSVG = highTrafficSVG;
-				}
+				label += aircraft[i].alt_baro;
+				if (label.includes("FL")) iconSVG = highTrafficSVG;
 			}
 		}
 		else {
 			iconSVG = groundTrafficSVG;
 		}
 
-		if (text == "") text = "N/A";
+		if (label == "") label = "N/A";
 
 		const trafficIconStyle = new ol.style.Style({
 			image: new ol.style.Icon({
 				src: iconSVG,
 				rotateWithView: true,
-				rotation: (aircraft[i].track) ? toRadians(aircraft[i].track) : 0,
-				opacity: (aircraft[i].alt_baro && (alt >= 10000 || aircraft[i].alt_baro == 'ground')) ? 0.75 : 1,
+				rotation: (aircraft[i].track) ? aircraft[i].track : 0,
 			}),
 			text: new ol.style.Text({
-				text: text,
+				text: label,
 				fill: labelColor,
 				backgroundFill: bgFill,
 				textAlign: 'center',
@@ -548,16 +546,24 @@ function updateTrafficLayer(aircraft) {
 				font: 'bold ' + (labelSize * globalScale * 0.75) + 'em ' + labelFont,
 				offsetX: 0,
 				offsetY: 25 * globalScale,
-				padding: [1 * globalScale, 17 * globalScale, -1 * globalScale, 19 * globalScale],
+				padding: [1 * globalScale, 10 * globalScale, -1 * globalScale, 12 * globalScale],
 			}),
 			zIndex: 250,
 		});
 
-		if (!aircraft[i].lat && !aircraft[i].lon) continue;
+		if (aircraft[i].prediction) {
+			const lineFeatures = new ol.Feature(new ol.geom.LineString([aircraft[i].mapLonLat, aircraft[i].prediction]));
+			lineFeatures.setStyle(lineStyle);
+			trafficIconFeatures.push(lineFeatures);
+		}
 
-		let trafficIcon = new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat([aircraft[i].lon, aircraft[i].lat])));
+		const trafficIcon = new ol.Feature(new ol.geom.Point(aircraft[i].mapLonLat));
 		trafficIcon.setStyle(trafficIconStyle);
-		trafficSource.addFeatures([trafficIcon]);
+		trafficIconFeatures.push(trafficIcon);
+	}
+
+	if (trafficIconFeatures.length > 0) {
+		trafficSource.addFeatures(trafficIconFeatures);
 	}
 }
 
@@ -695,70 +701,22 @@ function getCardinalDirection(angle) {
 	return directions[index];
 }
 
-function toggleFullScreen() {
-	if (!document.fullscreenElement) {
-		if (document.documentElement.requestFullscreen) {
-			document.documentElement.requestFullscreen();
-		}
-		else if (document.documentElement.mozRequestFullScreen) { /* Firefox */
-			document.documentElement.mozRequestFullScreen();
-		}
-		else if (document.documentElement.webkitRequestFullscreen) { /* Safari */
-			document.documentElement.webkitRequestFullscreen();
-		} else if (document.documentElement.webkitRequestFullscreen) { /* Safari */
-			document.documentElement.webkitRequestFullscreen();
-		}
-		else if (document.documentElement.msRequestFullscreen) { /* IE11 */
-			document.documentElement.msRequestFullscreen();
-		}
+function toggleFullscreen(event) {
+	if (document.fullscreenElement) {
+		noSleep.enable();
+		document.exitFullscreen();
+		jQuery('#toggle_fullscreen').css('background', blueColour);
+		jQuery('#toggle_fullscreen').text('Enter Fullscreen');
+	}
+	else {
+		noSleep.disable();
+		document.documentElement.requestFullscreen().catch((err) => {
+			log(`Error enabling fullscreen: ${err.message}`);
+			return;
+		})
 
 		jQuery('#toggle_fullscreen').css('background', greenColour);
 		jQuery('#toggle_fullscreen').text('Exit Fullscreen');
-
-		if ('wakeLock' in navigator) {
-			requestWakeLock();
-		}
-	}
-	else {
-		if (document.exitFullscreen) {
-			document.exitFullscreen();
-		}
-		else if (document.mozCancelFullScreen) {
-			document.mozCancelFullScreen();
-		}
-		else if (document.webkitExitFullscreen) {
-			document.webkitExitFullscreen();
-		}
-		else if (document.msExitFullscreen) {
-			document.msExitFullscreen();
-		}
-
-		jQuery('#toggle_fullscreen').css('background', blueColour);
-		jQuery('#toggle_fullscreen').text('Enter Fullscreen');
-
-		releaseWakeLock();
-	}
-}
-
-async function requestWakeLock() {
-	try {
-		wakeLock = await navigator.wakeLock.request();
-	}
-	catch (err) {
-		log(err.name + ": " + err.message);
-	}
-}
-
-function releaseWakeLock() {
-	if (!wakeLock) {
-		return;
-	}
-	try {
-		wakeLock.release()
-		wakeLock = null;
-	}
-	catch (err) {
-		log(err.name + ": " + err.message);
 	}
 }
 
@@ -787,6 +745,7 @@ function openSideMenu(layout) {
 			jQuery('#menu_title').text('Menu');
 			jQuery('#menu_items').css('display', 'block');
 			jQuery('#menu').css('width', '100%');
+			updateTrafficTableAllowed = true;
 	}
 }
 
@@ -883,12 +842,13 @@ function closeSideMenu() {
 	jQuery('#menu_items').css('display', 'none');
 	jQuery('#flight_items').css('display', 'none');
 	jQuery('#fuel_items').css('display', 'none');
-	jQuery('#traffic_items').css('display', 'none');
+	jQuery('#airport_items').css('display', 'none');
 	jQuery('#log_items').css('display', 'none');
 	jQuery('#available_fp_items').css('display', 'none');
 	jQuery('#back_button').css('display', 'none');
 	jQuery('#menu').css('width', '0');
 	jQuery('#menu_title').text('');
+	updateTrafficTableAllowed = false;
 }
 
 function toggleSnap() {
@@ -985,12 +945,12 @@ function removeFirstWaypoint() {
 	}
 }
 
-function findClosestPoint(mapLatLong) {
-	if (!snap) return [null, mapLatLong];
+function findClosestPoint(mapLatLon) {
+	if (!snap) return [null, mapLatLon];
 
-	const longlat = ol.proj.toLonLat(mapLatLong);
+	const longlat = ol.proj.toLonLat(mapLatLon);
 	const point = new geodesy.LatLon(longlat[1], longlat[0]);
-	let point2 = new geodesy.LatLon(0,0);
+	let point2 = new geodesy.LatLon(0, 0);
 
 	if (airpotList) {
 		for (let i = 0; i < airpotList.length; i++) {
@@ -1003,7 +963,7 @@ function findClosestPoint(mapLatLong) {
 		}
 	}
 
-	return [null, mapLatLong];
+	return [null, mapLatLon];
 }
 
 function generateFlightPlanTable() {
@@ -1277,6 +1237,44 @@ function updateValidationUI() {
 	jQuery('#open_fuel_plan').css('background', fuelPlanColour);
 }
 
+function updateADSBTrafficTable(aircraft) {
+	let newBody = document.createElement('tbody');
+	let htmlTable = document.getElementById('adsb_traffic_table');
+	let tbody = htmlTable.tBodies[0];
+	let newRow = null;
+	let rowConstruct = null;
+
+	for (let i = 0; i < aircraft.length; ++i) {
+		newRow = document.createElement('tr');
+
+		rowConstruct = '<td class="mid_font">' + ((aircraft[i].hex) ? aircraft[i].hex : "-") + '</td>';
+		rowConstruct += '<td class="mid_font">' + ((aircraft[i].flight) ? aircraft[i].flight.trim() : "-") + '</td>';
+		rowConstruct += '<td class="mid_font">' + ((aircraft[i].squawk) ? aircraft[i].squawk : "-") + '</td>';
+		rowConstruct += '<td class="mid_font">' + ((aircraft[i].normalizedTrack) ? aircraft[i].normalizedTrack : "-") + '</td>';;
+		rowConstruct += '<td class="mid_font">' + ((aircraft[i].alt_baro) ? aircraft[i].alt_baro : "-") + '</td>';;
+		rowConstruct += '<td class="mid_font">' + ((aircraft[i].gs) ? aircraft[i].gs : "-") + '</td>';;
+		rowConstruct += '<td class="mid_font">' + ((aircraft[i].rssi) ? aircraft[i].rssi : "-") + '</td>';;
+		newRow.innerHTML = rowConstruct;
+		newBody.appendChild(newRow);
+	}
+
+	htmlTable.replaceChild(newBody, tbody);
+	tbody.remove();
+}
+
+function adjustQNH(increase) {
+	if (increase) {
+		qnh += 1;
+	}
+	else {
+		qnh -= 1;
+	}
+
+	qnh = Math.round(qnh);
+	jQuery('#qnh').text(qnh);
+	localStorage.setItem("QNH", qnh);
+}
+
 function getTwoDigitText(value) {
 	return (value == null) ? "" : ('0' + Math.round(value)).slice(-2);
 }
@@ -1338,114 +1336,20 @@ function toggleNorthUp() {
 	}
 }
 
-function updateOwnship(position) {
-	if (position.coords != null) {
-		ownship.position.lat = position.coords.latitude;
-		ownship.position.lon = position.coords.longitude;
-	}
-	else {
-		ownship.position.lat = position[1];
-		ownship.position.lon = position[0];
-	}
-
-	let localDate = new Date();
-	ownship.fixTime = localDate.getTime();
-
-	if (!firstPosition) {
-		let deltaTime = ownship.fixTime - ownship.lastFixTime;
-		ownship.gs = ownship.lastPosition.distanceTo(ownship.position) * mToNm * 3600000 / deltaTime;
-		ownship.track = ownship.lastPosition.initialBearingTo(ownship.position);
-		ownship.magVar = geoMag(ownship.position.lat, ownship.position.lon).dec;
-		ownship.mapPosition = ol.proj.fromLonLat([ownship.position.lon, ownship.position.lat]);
-
-		speedSamples[speedSamples.length] = ownship.gs;
-
-		if (speedSamples.length > 30) speedSamples.shift();
-
-		if (position.coords) ownship.gpsAccuracy = position.coords.accuracy;
-
-		if (airborneCount == 0 && !airborneMode) {
-			panMode = false;
-			northUp = false;
-			airborneMode = true;
-
-			jQuery('#north_up').css('display', 'flex');
-			initOverlaySVGs();
-			centerMap();
-		}
-
-		if (ownship.gs > 30 && airborneCount > 0) {
-			airborneCount--;
-		}
-
-		jQuery('#gs').text(getRoundText(ownship.gs));
-		jQuery('#trk').text(getThreeDigitText(normalizeAngle(ownship.track - ownship.magVar)));
-
-		if (airborneMode && !ownship.atd) {
-			ownship.atd = [localDate.getUTCHours(), localDate.getUTCMinutes() + (localDate.getUTCSeconds() / 60)];
-		}
-
-		if (airborneMode && route.length > 0) {
-			let point = (route.length == 1) ? 0 : 1;
-
-			ownship.toGoDis = ownship.position.distanceTo(route[point].endPoint) * mToNm;
-			ownship.toGoDtk = normalizeAngle(ownship.position.initialBearingTo(route[point].endPoint) - ownship.magVar);
-
-			averageSpeed = 0;
-
-			for (let i = 0; i < speedSamples.length; i++) {
-				averageSpeed += speedSamples[i];
-			}
-
-			averageSpeed = averageSpeed / speedSamples.length;
-
-			ownship.toGs = Math.max(10, averageSpeed * Math.cos(toRadians(ownship.track - ownship.magVar - ownship.toGoDtk)));
-
-			getClosingTime();
-
-			if (route[point].fuelFlow) {
-				ownship.routeFuelReq = route[point].fuelFlow * (ownship.ete[0] + (ownship.ete[1] / 60));
-				ownship.totalFuel -= route[point].fuelFlow * deltaTime / 3600000;
-			}
-
-			const headingDiff = Math.abs(ownship.toGoDtk - (ownship.track - ownship.magVar)) % 360;
-
-			if (((headingDiff > 180) ? 360 - headingDiff : headingDiff) < 90 && !canRemoveWaypoint) {
-				canRemoveWaypoint = true;
-			}
-
-			if (ownship.toGoDis < 0.1 || (ownship.toGoDis < 3.0 && ((headingDiff > 180) ? 360 - headingDiff : headingDiff) > 90 && canRemoveWaypoint)) {
-				removeFirstWaypoint();
-				canRemoveWaypoint = false;
-			}
-
-			ownship.prevToGoDis = ownship.toGoDis;
-		}
-
-		renderPars.radTrack = toRadians(ownship.track);
-		renderPars.radMagVar = toRadians(ownship.magVar);
-		renderPars.radDtk = (ownship.toGoDtk && route.length > 0) ? renderPars.radMagVar + toRadians(ownship.toGoDtk) : null;
-
-		if (!panMode) {
-			animateView(deltaTime);
-		}
-
-		updateOwnshipLayer();
-	}
-
-	ownship.lastPosition.lat = ownship.position.lat;
-	ownship.lastPosition.lon = ownship.position.lon;
-	ownship.lastFixTime = ownship.fixTime;
-
-	if(firstPosition) firstPosition = false;
-}
-
-function gpsError(error) {
+function gpsFault(error) {
 	navigator.geolocation.clearWatch(gpsWatchID);
 	log('Warning: ' + error.message);
 	jQuery('#gps').css('display', 'flex');
 	document.getElementById('gps').innerHTML = svgShapeToSVG(ui['satellite'], redColour, '#ffffff', overlayButtonSize * globalScale);
 	ownship.gpsAccuracy = null;
+}
+
+function adsbFault() {
+	window.clearInterval(timers.adsbClock);
+	trafficSource.clear();
+	updateADSBTrafficTable([]);
+
+	//To-do set fault icon.
 }
 
 function centerMap() {
@@ -1487,7 +1391,7 @@ function log(string) {
 }
 
 function animateView(duration) {
-	if (!firstPosition && !ownship.track) return;
+	if (!ownship.gs) return;
 
 	OLMap.getView().cancelAnimations();
 	OLMap.getView().animate(
@@ -1560,11 +1464,10 @@ async function loadFlightPlanFromServer(fileName) {
 
 			const result = await response.json(); // Parse JSON response
 
-			if(result.ownship)
-			{
+			if (result.ownship) {
 				ownship.atd = result.ownship.atd;
 				ownship.etd = result.ownship.etd;
-				ownship.totalFuel = result.ownship.totalFuel ;
+				ownship.totalFuel = result.ownship.totalFuel;
 				ownship.routeFuelReq = result.ownship.routeFuelReq;
 				ownship.reserveFuel = result.ownship.reserveFuel;
 				ownship.reserveFuelFlow = result.ownship.reserveFuelFlow;
@@ -1668,25 +1571,90 @@ function setUIScale(increase) {
 	jQuery('#zoom').text(getDecimalText(globalScale));
 }
 
-async function parseADSBTraffic() {
-	try {
-		const response = await fetch(apiData + '?filename=aircraft');
+/* Worker messages section */
+function updateOwnshipWorker(position)
+{
+	if (position.coords)
+	{
+		ownship.gpsAccuracy = position.coords.accuracy;
+		position = [position.coords.longitude, position.coords.latitude]
+	} 
 
-		if (response.ok) {
-			const result = await response.json(); // Parse JSON response
+	let point = (route.length == 1) ? 0 : 1;
+	ownshipWorker.postMessage({"simMode": simMode, "ownshipPos": position, "ownshipFuel": ownship.totalFuel, "navPoint": (route.length > 0) ? route[point].endPoint : null, "sectionFuelFlow": (route.length > 0) ? route[point].fuelFlow : null});
+}
 
-			if (result.aircraft) {
-				updateTrafficLayer(result.aircraft);
-			}
+trafficWorker.onmessage = (msg) => {
+	if (msg.data["state"] == 0) {
+		updateTrafficLayer(msg.data["traffic"]);
+		if (updateTrafficTableAllowed) updateADSBTrafficTable(msg.data["traffic"]);
+		if(faultCounter != 60) faultCounter = 60;
+	}
+	else {
+		if (faultCounter > 0) {
+			faultCounter--;
 		}
 		else {
-			log('Error loading data: ' + response.statusText);
-			trafficSource.clear();
+			adsbFault();
 		}
 	}
-	catch (err) {
-		log('Error during fetch: ' + err.message);
+};
+
+ownshipWorker.onmessage = (msg) => {
+
+	ownship.position.lat = msg.data["ownship"].position._lat;
+	ownship.position.lon = msg.data["ownship"].position._lon;
+	ownship.gs = msg.data["ownship"].gs;
+	ownship.track = msg.data["ownship"].track;
+	ownship.magVar = msg.data["ownship"].magVar;
+	ownship.mapPosition = msg.data["ownship"].mapPosition;
+	ownship.atd = msg.data["ownship"].atd;
+	ownship.ete = msg.data["ownship"].ete;
+	ownship.routeFuelReq = msg.data["ownship"].routeFuelReq;
+	ownship.totalFuel = msg.data["ownship"].totalFuel;
+	ownship.toGoDis = msg.data["ownship"].toGoDis;
+	ownship.toGoDtk = msg.data["ownship"].toGoDtk;
+	ownship.toGs = msg.data["ownship"].toGs;
+
+	renderPars.radTrack = msg.data["renderPars"].radTrack;
+	renderPars.radMagVar = msg.data["renderPars"].radMagVar;
+	renderPars.radDtk = msg.data["renderPars"].radDtk;
+
+	if (msg.data["airborneMode"] && !airborneMode) {
+		panMode = false;
+		northUp = false;
+		airborneMode = true;
+
+		jQuery('#north_up').css('display', 'flex');
+		initOverlaySVGs();
+		centerMap();
 	}
-}
+	
+	jQuery('#gs').text(getRoundText(ownship.gs));
+	jQuery('#trk').text(getThreeDigitText(normalizeAngle(ownship.track - ownship.magVar)));
+
+	if(airborneMode)
+	{
+		const headingDiff = Math.abs(ownship.toGoDtk - (ownship.track - ownship.magVar)) % 360;
+
+		if (((headingDiff > 180) ? 360 - headingDiff : headingDiff) < 90 && !canRemoveWaypoint) {
+			canRemoveWaypoint = true;
+		}
+
+		if (ownship.toGoDis < 0.1 || (ownship.toGoDis < 3.0 && ((headingDiff > 180) ? 360 - headingDiff : headingDiff) > 90 && canRemoveWaypoint)) {
+			removeFirstWaypoint();
+			canRemoveWaypoint = false;
+		}
+
+		if (!panMode) {
+			animateView(msg.data["deltaTime"]);
+		}
+	}
+
+	updateOwnshipLayer();
+
+};
+
+/* End of Worker messages section */
 
 initialize();

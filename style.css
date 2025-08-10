@@ -253,7 +253,6 @@ table {
 	border-left: 1px solid white;
 }
 
-
 input {
 	width: calc(2.5em * var(--SCALE));
 }
@@ -283,9 +282,9 @@ input {
 	margin-right: calc(0.75em * var(--SCALE));
 }
 
-#zoom_ui{
+.increase_decrease_ui{
 	display: flex;
-	margin-top: calc(1em * var(--SCALE));
+	padding-top: calc(1em * var(--SCALE));
 }
 
 #reduce_ui_size{
@@ -294,6 +293,20 @@ input {
 }
 
 #increase_ui_size{
+	margin-right: auto;
+	margin-left: calc(2em * var(--SCALE));
+}
+
+#qnh_text{
+	margin: auto 0;
+}
+
+#reduce_qnh{
+	margin-left: auto;
+	margin-right: calc(2em * var(--SCALE));
+}
+
+#increase_qnh{
 	margin-right: auto;
 	margin-left: calc(2em * var(--SCALE));
 }
@@ -312,7 +325,7 @@ input {
 	height: 100%;
 }
 
-#traffic_items {
+#airport_items {
 	display: none;
 	height: 100%;
 }
@@ -336,66 +349,6 @@ input {
 	display: none;
 }
 
-#flight_table {
-	width: calc(102em * var(--SCALE));
-	margin-top: calc(1em * var(--SCALE));
-	margin-bottom: calc(1em * var(--SCALE));
-}
-
-#flight_table td {
-	border: 1px solid white;
-	padding-top: calc(0.35em * var(--SCALE));
-	width: 8.33%;
-}
-
-#flight_table thead td {
-	background: #595959;
-	padding: calc(0.5em * var(--SCALE));
-}
-
-#flight_table tbody {
-	text-align: center;
-}
-
-#flight_table input {
-	width: calc(4.1em * var(--SCALE));
-}
-
-#fuel_table {
-	width: calc(68em * var(--SCALE));
-	margin-top: calc(1em * var(--SCALE));
-	margin-bottom: calc(1em * var(--SCALE));
-}
-
-#fuel_table td {
-	border: 1px solid white;
-	padding-top: calc(0.35em * var(--SCALE));
-	width: 8.33%;
-}
-
-#fuel_table thead td {
-	background: #595959;
-	padding: calc(0.5em * var(--SCALE));
-}
-
-#fuel_table tbody {
-	text-align: center;
-}
-
-#fuel_table input {
-	width: calc(4.1em * var(--SCALE));
-}
-
-#flight_table_scroll {
-	overflow: auto;
-	height: calc(100% - (21em * var(--SCALE)));
-}
-
-#fuel_table_scroll {
-	overflow: auto;
-	height: calc(100% - (19.9em * var(--SCALE)));
-}
-
 #menu_title {
 	text-align: center;
 }
@@ -414,6 +367,57 @@ input {
 	font-size: calc(1.0em * var(--SCALE));
 	font-family: "Arial";
 	font-weight: normal;
+}
+
+#flight_table {
+	width: calc(102em * var(--SCALE));
+}
+
+#fuel_table {
+	width: calc(68em * var(--SCALE));
+}
+
+#adsb_traffic_table {
+	width: calc(68em * var(--SCALE));
+}
+
+.side_table thead td {
+	background: #595959;
+	border: 1px solid white;
+	padding: calc(0.5em * var(--SCALE));
+	width: 8.33%;
+}
+
+.side_table tbody td{
+	text-align: center;
+	border: 1px solid white;
+	padding-top: calc(0.35em * var(--SCALE));
+	font-weight: normal;
+}
+
+table input{
+	width: calc(4.1em * var(--SCALE));
+}
+
+.table_scroll{
+	overflow: auto;
+}
+
+.side_table{
+	margin-top: calc(1em * var(--SCALE));
+	margin-bottom: calc(1em * var(--SCALE));
+}
+
+#flight_table_scroll{
+	height: calc(100vh - (21em * var(--SCALE)));
+}
+
+#fuel_table_scroll {
+	height: calc(100vh - (19.9em * var(--SCALE)));
+}
+
+#adsb_traffic_table_scroll {
+	height: calc(100vh - (18em * var(--SCALE)));
 }
 
 .fullscreen:-webkit-full-screen {
