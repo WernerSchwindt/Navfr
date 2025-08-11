@@ -19,13 +19,13 @@ let lastFixTime = null;
 let deltaTime = null;
 
 ownship.position = new geodesy.LatLon(0, 0);
-
+ownship.prediction = new geodesy.LatLon(0,0);
 ownship.gs = null;
 ownship.track = null;
 ownship.magVar = null;
 ownship.mapPosition = null;
-ownship.atd = null;
-ownship.ete = null;
+ownship.atd = [];
+ownship.ete = [];
 ownship.routeFuelReq = null;
 ownship.totalFuel = null;
 ownship.toGoDis = null;
@@ -51,7 +51,6 @@ onmessage = (e) => {
 	updateOwnship(e.data);
 };
 
-
 /*
 	data structure:
 		data["simMode"] = sim mode. 
@@ -74,6 +73,9 @@ function updateOwnship(data) {
 		if (isNaN(ownship.track)) ownship.track = 0;
 		ownship.magVar = geoMag(ownship.position.lat, ownship.position.lon).dec;
 		ownship.mapPosition = ol.proj.fromLonLat([ownship.position.lon, ownship.position.lat]);
+		
+		const p1 = ownship.position.destinationPoint(ownship.gs / (mToNm * 60), ownship.track);
+		ownship.prediction = new ol.proj.fromLonLat([p1.lon, p1.lat]);
 
 		speedSamples[speedSamples.length] = ownship.gs;
 
@@ -91,7 +93,7 @@ function updateOwnship(data) {
 			ownship.atd = [localDate.getUTCHours(), localDate.getUTCMinutes() + (localDate.getUTCSeconds() / 60)];
 		}
 
-		if (airborneMode && data["navPoint"] && data["sectionFuelFlow"]) {
+		if (airborneMode && data["navPoint"]) {
 			navPoint.lat = data["navPoint"]._lat;
 			navPoint.lon = data["navPoint"]._lon;
 

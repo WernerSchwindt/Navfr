@@ -37,10 +37,10 @@ async function parseADSBTraffic(data) {
 			const result = await response.json();
 			const p1 = new geodesy.LatLon(0, 0);
 
-			if(data["ownshipPos"]._lat && data["ownshipPos"]._lon )
+			if(data["ownshipPos"])
 			{
-				ownshipPistion.lat = data["ownshipPos"]._lat;
-				ownshipPistion.lon = data["ownshipPos"]._lon;
+				ownshipPistion.lat = data["ownshipPos"][1];
+				ownshipPistion.lon = data["ownshipPos"][0];
 			}
 
 			if (result.aircraft) {
@@ -66,7 +66,7 @@ async function parseADSBTraffic(data) {
 						track.prediction = new ol.proj.fromLonLat([p2.lon, p2.lat]);
 					}
 
-					if ((!data["ownshipPos"]._lat || !data["ownshipPos"]._lon || (ownshipPistion.distanceTo(p1) * mToNm < 50)) && track.lat && track.lon) {
+					if ((!data["ownshipPos"] || (ownshipPistion.distanceTo(p1) * mToNm < 50)) && track.lat && track.lon) {
 						track.mapLonLat = new ol.proj.fromLonLat([track.lon, track.lat]);
 					}
 
