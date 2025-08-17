@@ -1,7 +1,10 @@
+"use strict";
+
 importScripts('libs/geodesy-custom-2.3.0.js');
 importScripts('libs/geomag2020.js');
+importScripts('utilities.js');
+importScripts('defaults.js');
 
-const mToNm = 0.000539957;
 const geoMag = geoMagFactory(cof2Obj());
 const navPoint = new geodesy.LatLon(0, 0);
 const lastPosition = new geodesy.LatLon(0, 0);
@@ -17,14 +20,14 @@ let airborneMode = false;
 let fixTime = null;
 let lastFixTime = null;
 let deltaTime = null;
+let averageSpeed = null;
 
 ownship.position = new geodesy.LatLon(0, 0);
-ownship.prediction = new geodesy.LatLon(0,0);
+ownship.prediction = new geodesy.LatLon(0, 0);
 ownship.gs = null;
 ownship.track = null;
 ownship.magVar = null;
 ownship.mapPosition = null;
-ownship.atd = [];
 ownship.ete = [];
 ownship.routeFuelReq = null;
 ownship.totalFuel = null;
@@ -44,7 +47,7 @@ onmessage = (e) => {
 			importScripts('libs/ol-custom-6.15.1.js');
 		}
 		else {
-			importScripts('libs/ol-custom-10.6.0.js');
+			importScripts('libs/ol-custom-10.6.1.js');
 		}
 	}
 
@@ -73,7 +76,7 @@ function updateOwnship(data) {
 		if (isNaN(ownship.track)) ownship.track = 0;
 		ownship.magVar = geoMag(ownship.position.lat, ownship.position.lon).dec;
 		ownship.mapPosition = ol.proj.fromLonLat([ownship.position.lon, ownship.position.lat]);
-		
+
 		const p1 = ownship.position.destinationPoint(ownship.gs / (mToNm * 60), ownship.track);
 		ownship.prediction = new ol.proj.fromLonLat([p1.lon, p1.lat]);
 
@@ -87,10 +90,6 @@ function updateOwnship(data) {
 
 		if (airborneCount == 0 && !airborneMode) {
 			airborneMode = true;
-		}
-
-		if (airborneMode && !ownship.atd) {
-			ownship.atd = [localDate.getUTCHours(), localDate.getUTCMinutes() + (localDate.getUTCSeconds() / 60)];
 		}
 
 		if (airborneMode && data["navPoint"]) {
@@ -130,20 +129,6 @@ function updateOwnship(data) {
 		firstPosition = false;
 	}
 	else {
-		postMessage({ "airborneMode": airborneMode, "ownship": ownship, "renderPars": renderPars, "deltaTime": deltaTime});
+		postMessage({ "airborneMode": airborneMode, "ownship": ownship, "renderPars": renderPars, "deltaTime": deltaTime });
 	}
-}
-
-function toRadians(degrees) {
-	return degrees * Math.PI / 180;
-}
-
-function normalizeAngle(angle) {
-	// Use modulo to get the angle within 0-360 (or -359 to 359)
-	let normalizedAngle = angle % 360;
-
-	// If the angle is negative, add 360 to make it positive
-	if (normalizedAngle < 0) normalizedAngle += 360;
-
-	return normalizedAngle;
 }

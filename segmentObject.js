@@ -114,21 +114,3 @@ SectorObject.prototype.calculateWind = function (course, groundspeed) {
 		this.windDir = normalizeAngle(course + toDegrees(windAngle) + ((speed < 0) ? 180 : 0));
 	}
 }
-
-function toRadians(degrees) {
-	return degrees * Math.PI / 180;
-}
-
-function toDegrees(radians) {
-	return radians * 180 / Math.PI;
-}
-
-function normalizeAngle(angle) {
-	// Use modulo to get the angle within 0-360 (or -359 to 359)
-	let normalizedAngle = angle % 360;
-
-	// If the angle is negative, add 360 to make it positive
-	if (normalizedAngle < 0) normalizedAngle += 360;
-
-	return normalizedAngle;
-}

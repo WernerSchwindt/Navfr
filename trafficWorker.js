@@ -1,8 +1,11 @@
+"use strict";
+
 importScripts('libs/geodesy-custom-2.3.0.js');
+importScripts('utilities.js');
+importScripts('defaults.js');
 
 let libsInit = false;
 const ownshipPistion = new geodesy.LatLon(0, 0);
-const mToNm = 0.000539957;
 
 onmessage = (e) => {
 	if (!libsInit) {
@@ -12,7 +15,7 @@ onmessage = (e) => {
 			importScripts('libs/ol-custom-6.15.1.js');
 		}
 		else {
-			importScripts('libs/ol-custom-10.6.0.js');
+			importScripts('libs/ol-custom-10.6.1.js');
 		}
 	}
 
@@ -37,8 +40,7 @@ async function parseADSBTraffic(data) {
 			const result = await response.json();
 			const p1 = new geodesy.LatLon(0, 0);
 
-			if(data["ownshipPos"])
-			{
+			if (data["ownshipPos"]) {
 				ownshipPistion.lat = data["ownshipPos"][1];
 				ownshipPistion.lon = data["ownshipPos"][0];
 			}
@@ -48,15 +50,14 @@ async function parseADSBTraffic(data) {
 
 				result.aircraft = result.aircraft.map((track) => {
 					if (track.alt_baro) track.alt_baro = correctBaroAlt(track.alt_baro, track.baro_rate, data["qnh"]);
-					if (track.flight){
-						if(track.flight.includes("@"))
-						{
+					if (track.flight) {
+						if (track.flight.includes("@")) {
 							track.flight = null;
 						}
-						else{
+						else {
 							track.flight = track.flight.trim();
 						}
-					} 
+					}
 					if (track.rssi) track.rssi = (Math.round(track.rssi * 10) / 10).toFixed(1);
 
 					if (track.lat && track.lon && track.track && track.alt_baro != "Ground") {
@@ -80,12 +81,12 @@ async function parseADSBTraffic(data) {
 					return track;
 				});
 
-				postMessage({"state": 0, "traffic": result.aircraft});
+				postMessage({ "state": 0, "traffic": result.aircraft });
 			}
 		}
 	}
 	catch (err) {
-		postMessage({"state": 1, "traffic": []});
+		postMessage({ "state": 1, "traffic": [] });
 	}
 }
 
@@ -104,16 +105,12 @@ function correctBaroAlt(aircraftAlt, rate, qnh) {
 		}
 	}
 
-	if (alt < 10000) {
+	if (alt < transitionAlt) {
 		altText += Math.round(alt);
 	}
 	else {
-		(Number(aircraftAlt) >= 10000) ? altText += ("FL" + aircraftAlt).slice(0, 5) : altText += ("FL0" + aircraftAlt).slice(0, 5);
+		(Number(aircraftAlt) >= transitionAlt) ? altText += ("FL" + aircraftAlt).slice(0, 5) : altText += ("FL0" + aircraftAlt).slice(0, 5);
 	}
 
 	return altText;
-}
-
-function toRadians(degrees) {
-	return degrees * Math.PI / 180;
 }

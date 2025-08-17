@@ -1,15 +1,11 @@
 "use strict";
 
+const noSleep = new NoSleep();
 let date = null;
 let layers = null;
 let layersGroup = null;
 let OLMap = null;
 let timers = {};
-let trafficLayer = null;
-let ownshipLayer = null;
-let routeSource = new ol.source.Vector();
-let ownshipSource = new ol.source.Vector();
-let trafficSource = new ol.source.Vector();
 let route = [];
 let completedRoute = [];
 let geoMag = null;
@@ -17,7 +13,6 @@ let currZoom = null;
 let snap = true;
 let flightPlanValidated = null;
 let fuelPlanValidated = null;
-const noSleep = new NoSleep();
 let ownship = {};
 let renderPars = {};
 let gpsWatchID = null;
@@ -29,6 +24,11 @@ let airpotList = null;
 let speedSamples = [];
 let averageSpeed = null;
 let faultCounter = 60;
+let qnh = 1013.25;
+
+let routeSource = new ol.source.VectorSource();
+let ownshipSource = new ol.source.VectorSource();
+let trafficSource = new ol.source.VectorSource();
 
 let testMode = false;
 let simMode = false;
@@ -41,20 +41,18 @@ let animate = false;
 // Ownship
 let viewPoint = new ol.geom.Point([0, 0]);
 let ownshipSVG = null;
+let ownshipAirborneSVG = null;
 let compassSVG = null;
 let trackSVG = null;
 let trackBugSVG = null;
 let trafficSVG = null;
 let groundTrafficSVG = null;
 let highTrafficSVG = null;
-let ownshipIcon = null;
 let updateTrafficTableAllowed = false;
 let styleArrey = [];
 let vectorLineStyle = null;
+let trafficBackground = null;
 
-let qnh = 1013.25;
-
-const mToNm = 0.000539957;
 const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 const trafficWorker = new Worker("trafficWorker.js");
@@ -77,16 +75,21 @@ function initialize() {
 		qnh = Number(localStorage.getItem("QNH"));
 	}
 
+	if (localStorage.getItem("view_lat") && localStorage.getItem("view_lon")) {
+		centerLat = localStorage.getItem("view_lat");
+		centerLon = localStorage.getItem("view_lon");
+	}
+
 	document.documentElement.style.setProperty("--SCALE", globalScale);
 	jQuery('#zoom').text(getDecimalText(globalScale), false);
 	jQuery('#qnh').text(Math.round(qnh));
 
+	initOverlaySVGs();
 	initMap();
 	initEvents();
 	initTimers();
 	initIcons();
 	initButtons();
-	initOverlaySVGs();
 
 	geoMag = geoMagFactory(cof2Obj());
 
@@ -112,22 +115,6 @@ function initialize() {
 	ownship.holdFuelFlow = 0;
 	ownship.holdDuration = 0;
 
-	styleArrey[0] = new ol.style.Style({
-		image: new ol.style.Circle({
-			radius: 153 * globalScale,
-			stroke: new ol.style.Stroke({ color: [255, 255, 255, 0.8], width: 32 * globalScale }),
-		}),
-		zIndex: 180,
-	});
-
-	vectorLineStyle = new ol.style.Style({
-		stroke: new ol.style.Stroke({
-			color: routeColor,
-			width: vectorWidth * globalScale,
-		}),
-		zIndex: 190,
-	});
-
 	airborneMode = false;
 	canRemoveWaypoint = false;
 
@@ -142,6 +129,10 @@ function initialize() {
 	}
 
 	if (localStorage.getItem("currentFlightPlan")) loadFlightPlanFromServer(localStorage.getItem("currentFlightPlan"));
+
+	if (localStorage.getItem("atd_hrs") && localStorage.getItem("atd_mins")) {
+		ownship.atd = [Number(localStorage.getItem("atd_hrs")), Number(localStorage.getItem("atd_mins"))];
+	}
 
 	loadAirportsFromServer();
 }
@@ -169,56 +160,205 @@ function initIcons() {
 }
 
 function initOverlaySVGs() {
-	ownshipSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['cessna'], (airborneMode) ? greenColour : 'grey', '#000000', globalScale));
-	compassSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['compass_rose'], '#000000', '#000000', globalScale));
-	trackSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['track'], '#000000', '#ffffff', globalScale));
-	trackBugSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['track_bug'], '#000000', '#ffffff', globalScale));
-	trafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], redColour, '#000000', globalScale));
-	highTrafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], purpleColour, '#000000', globalScale));
-	groundTrafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], 'grey', '#000000', globalScale));
+	ownshipSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['cessna'], 'grey', '#000000', 1));
+	ownshipAirborneSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['cessna'], greenColour, '#000000', 1));
+	compassSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['compass_rose'], '#000000', '#000000', 1));
+	trackSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['track'], '#000000', '#ffffff', 1));
+	trackBugSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['track_bug'], '#000000', '#ffffff', 1));
+	trafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], redColour, '#000000', 1));
+	highTrafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], purpleColour, '#000000', 1));
+	groundTrafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], 'grey', '#000000', 1));
 }
 
 function initMap() {
 	layersGroup = createBaseLayers();
 	layers = layersGroup.getLayers();
 
-	let routeLayer = new ol.layer.Vector({
-		name: 'routeLayer',
-		title: 'Route Layer',
-		type: 'overlay',
+	const routeStyle = [{
+		filter: ['==', ['geometry-type'], "Point"],
+		style: {
+			'circle-radius': ['*', pointRadius, ['get', 'scale']],
+			'circle-fill-color': routeColor,
+			'circle-stroke-color': 'white',
+			'circle-stroke-width': ['*', pointStroke, ['get', 'scale']],
+			'text-value': ['get', 'name'],
+			'text-fill-color': labelColor,
+			'text-background-fill-color': bgFill,
+			'text-align': 'left',
+			'text-baseline': 'bottom',
+			'text-font': ['get', 'textFont'],
+			'text-offset-x': ['*', 30, ['get', 'scale']],
+			'text-offset-y': ['*', 11, ['get', 'scale']],
+			'text-padding': ['get', 'textPadding'],
+		},
+	},
+	{
+		else: true,
+		filter: ['==', ['get', 'isActive'], true],
+		style: {
+			'stroke-color': activeRouteColor,
+			'stroke-width': ['*', activeRouteWidth, ['get', 'scale']],
+		},
+	},
+	{
+		else: true,
+		style: {
+			'stroke-color': routeColor,
+			'stroke-width': ['*', routeWidth, ['get', 'scale']],
+		}
+	}];
+
+	const routeLayer = new ol.layer.VectorLayer({
 		source: routeSource,
-		updateWhileInteracting: false,
+		style: routeStyle,
 		updateWhileAnimating: true,
-		zIndex: 150,
-		declutter: false,
 		renderBuffer: 60,
 	});
 
 	layers.push(routeLayer);
 
-	ownshipLayer = new ol.layer.Vector({
-		name: 'ownshipLayer',
-		title: 'Ownship position',
-		type: 'overlay',
-		updateWhileInteracting: false,
-		updateWhileAnimating: true,
+	const ownshipStyle = [{
+		filter: ['==', ['geometry-type'], "LineString"],
+		style: {
+			'stroke-color': routeColor,
+			'stroke-width': ['*', vectorWidth, ['get', 'scale']],
+			'z-index': 1,
+		},
+	},
+	{
+		else: true,
+		style: {
+			'circle-radius': ['*', 153, ['get', 'scale']],
+			'circle-stroke-width': ['*', 32, ['get', 'scale']],
+			'circle-stroke-color': 'rgba(255,255,255,0.8)',
+			'text-value': ['get', 'location'],
+			'text-fill-color': labelColor,
+			'text-background-fill-color': bgFill,
+			'text-align': 'left',
+			'text-baseline': 'bottom',
+			'text-font': ['get', 'textFont'],
+			'text-offset-x': ['get', 'scale'],
+			'text-offset-y': ['*', 50, ['get', 'scale']],
+			'text-padding': ['get', 'textPadding'],
+		}
+	},
+	{
+		filter: ['==', ['geometry-type'], "Point"],
+		style: {
+			'icon-src': compassSVG,
+			'icon-rotate-with-view': true,
+			'icon-rotation': ['get', 'magVar'],
+			'icon-scale': ['get', 'scale'],
+			'z-index': 0,
+		}
+	},
+	{
+		filter: ['==', ['geometry-type'], "Point"],
+		style: {
+			'icon-src': trackBugSVG,
+			'icon-rotate-with-view': true,
+			'icon-rotation': ['get', 'trackBug'],
+			'z-index': 1,
+		}
+	},
+	{
+		filter: ['==', ['geometry-type'], "Point"],
+		style: {
+			'icon-src': trackSVG,
+			'icon-rotate-with-view': true,
+			'icon-rotation': ['get', 'track'],
+			'z-index': 2,
+		}
+	},
+	{
+		filter: ['==', ['get', 'airborne'], false],
+		style: {
+			'icon-src': ownshipSVG,
+			'icon-rotate-with-view': true,
+			'icon-rotation': ['get', 'track'],
+			'z-index': 2,
+		}
+	},
+	{
+		filter: ['==', ['get', 'airborne'], true],
+		style: {
+			'icon-src': ownshipAirborneSVG,
+			'icon-rotate-with-view': true,
+			'icon-rotation': ['get', 'track'],
+			'z-index': 2,
+		}
+	}];
+
+	const ownshipLayer = new ol.layer.VectorLayer({
 		source: ownshipSource,
-		zIndex: 200,
-		declutter: false,
+		style: ownshipStyle,
+		updateWhileAnimating: true,
 		renderBuffer: 60,
 	});
 
 	layers.push(ownshipLayer);
 
-	trafficLayer = new ol.layer.Vector({
-		name: 'trafficLayer',
-		title: 'Traffic positions',
-		type: 'overlay',
-		updateWhileInteracting: false,
-		updateWhileAnimating: true,
+	const trafficStyle = [{
+		filter: ['==', ['geometry-type'], "LineString"],
+		style: {
+			'stroke-color': routeColor,
+			'stroke-width': ['*', vectorWidth, ['get', 'scale']],
+			'z-index': 1,
+		},
+	},
+	{
+		else: true,
+		style: {
+			
+			'circle-radius': ['*', 16, ['get', 'scale']],
+			'circle-fill-color': 'rgba(255,255,255,0.8)',
+			'text-value': ['get', 'label'],
+			'text-fill-color': labelColor,
+			'text-background-fill-color': bgFill,
+			'text-align': 'center',
+			'text-baseline': 'top',
+			'text-font': ['get', 'textFont'],
+			'text-offset-x': 0,
+			'text-offset-y': ['*', 25, ['get', 'scale']],
+			'text-padding': ['get', 'textPadding'],
+			'z-index': 0,
+		}
+	},
+	{
+		filter: ['==', ['get', 'iconType'], 0],
+		style: {
+			'icon-src': trafficSVG,
+			'icon-rotate-with-view': true,
+			'icon-rotation': ['get', 'rotate'],
+			'icon-scale': ['get', 'scale'],
+			'z-index': 2,
+		}
+	},
+	{
+		filter: ['==', ['get', 'iconType'], 1],
+		style: {
+			'icon-src': highTrafficSVG,
+			'icon-rotate-with-view': true,
+			'icon-rotation': ['get', 'rotate'],
+			'icon-scale': ['get', 'scale'],
+			'z-index': 2,
+		}
+	},
+	{
+		filter: ['==', ['get', 'iconType'], 2],
+		style: {
+			'icon-src': groundTrafficSVG,
+			'icon-rotate-with-view': true,
+			'icon-rotation': ['get', 'rotate'],
+			'icon-scale': ['get', 'scale'],
+			'z-index': 2,
+		}
+	}];
+
+	const trafficLayer = new ol.layer.VectorLayer({
 		source: trafficSource,
-		zIndex: 250,
-		declutter: false,
+		style: trafficStyle,
+		updateWhileAnimating: true,
 		renderBuffer: 60,
 	});
 
@@ -228,7 +368,7 @@ function initMap() {
 		target: 'map_canvas',
 		layers: layersGroup,
 		view: new ol.View({
-			center: ol.proj.fromLonLat([CenterLon, CenterLat]),
+			center: ol.proj.fromLonLat([centerLon, centerLat]),
 			zoom: zoomLvl,
 			multiWorld: true,
 		}),
@@ -407,55 +547,20 @@ function updateClock() {
 /*Map Layer Update Section*/
 function updateRouteLayer() {
 	let routeFeatures = [];
-
-	const lineStyle = new ol.style.Style({
-		stroke: new ol.style.Stroke({
-			color: routeColor,
-			width: routeWidth * globalScale,
-		}),
-		zIndex: 150,
-	});
-
-	const lineStyleActive = new ol.style.Style({
-		fill: labelColor,
-		stroke: new ol.style.Stroke({
-			color: activeRouteColor,
-			width: activeRouteWidth * globalScale,
-		}),
-		zIndex: 150,
-	});
-
-	for (let i = route.length - 1; i >= 0; --i) {
-		const pointStyle = new ol.style.Style({
-			text: new ol.style.Text({
-				text: route[i].sectorName,
-				fill: labelColor,
-				backgroundFill: bgFill,
-				textAlign: 'left',
-				textBaseline: 'bottom',
-				font: 'bold ' + (labelSize * globalScale) + 'em ' + labelFont,
-				offsetX: 30 * globalScale,
-				offsetY: 11 * globalScale,
-				padding: [1 * globalScale, 8 * globalScale, -1 * globalScale, 10 * globalScale],
-			}),
-			image: new ol.style.Circle({
-				radius: pointRadius * globalScale,
-				fill: pointColor,
-				stroke: new ol.style.Stroke({ color: 'white', width: pointStroke * globalScale }),
-			}),
-			zIndex: 150,
-		});
-
-		const pointFeatures = new ol.Feature(new ol.geom.Point(route[i].mapPoint));
-		pointFeatures.setStyle(pointStyle);
-		routeFeatures.push(pointFeatures);
-	}
-
 	let routePoints = [];
 	let activeRoutePoints = [];
 	let sections = null;
 	let sectionDis = null;
 	let point = null;
+
+	for (let i = route.length - 1; i >= 0; --i) {
+		const pointFeature = new ol.Feature(new ol.geom.Point(route[i].mapPoint));
+		pointFeature.set("name", route[i].sectorName);
+		pointFeature.set("scale", globalScale);
+		pointFeature.set("textFont", 'bold ' + (labelSize * globalScale) + 'em ' + labelFont);
+		pointFeature.set("textPadding", [1 * globalScale, 8 * globalScale, -1 * globalScale, 10 * globalScale]);
+		routeFeatures.push(pointFeature);
+	}
 
 	if (route.length > 1) {
 		for (let i = route.length - 1; i > 0; --i) {
@@ -476,13 +581,14 @@ function updateRouteLayer() {
 		activeRoutePoints.push(route[0].mapPoint);
 		routePoints.push(route[1].mapPoint);
 
-		const lineFeatures = new ol.Feature(new ol.geom.LineString(routePoints));
-		lineFeatures.setStyle(lineStyle);
-		routeFeatures.push(lineFeatures);
+		const lineFeature = new ol.Feature(new ol.geom.LineString(routePoints));
+		lineFeature.set("scale", globalScale);
+		routeFeatures.push(lineFeature);
 
-		const activeLineFeatures = new ol.Feature(new ol.geom.LineString(activeRoutePoints));
-		activeLineFeatures.setStyle(lineStyleActive);
-		routeFeatures.push(activeLineFeatures);
+		const activeLineFeature = new ol.Feature(new ol.geom.LineString(activeRoutePoints));
+		activeLineFeature.set("isActive", true);
+		activeLineFeature.set("scale", globalScale);
+		routeFeatures.push(activeLineFeature);
 	}
 
 	routeSource.clear();
@@ -494,42 +600,37 @@ function updateRouteLayer() {
 
 function updateOwnshipLayer() {
 
-	updateOverlayStyles();
-
 	viewPoint.setCoordinates(ownship.mapPosition);
-	ownshipIcon = new ol.Feature(viewPoint);
-	ownshipIcon.setStyle(styleArrey);
+	const ownshipIcon = new ol.Feature(viewPoint);
+	ownshipIcon.set("scale", globalScale);
+	ownshipIcon.set("magVar", renderPars.radMagVar);
+	ownshipIcon.set("trackBug", (renderPars.radDtk) ? renderPars.radDtk : renderPars.radMagVar);
+	ownshipIcon.set("track", renderPars.radTrack);
+	ownshipIcon.set("airborne", airborneMode);
+	ownshipIcon.set("location", (ownship.toGoDtk) ? getCardinalDirection(ownship.toGoDtk) : "-");
+	ownshipIcon.set("textFont", 'bold ' + (labelSize * globalScale * 0.75) + 'em ' + labelFont);
+	ownshipIcon.set("textPadding", [1 * globalScale, 4 * globalScale, -1 * globalScale, 6 * globalScale]);
+
 	ownshipSource.clear();
-	ownshipSource.addFeatures([ownshipIcon]);	
-	
-	vectorLineStyle = new ol.style.Style({
-		stroke: new ol.style.Stroke({
-			color: routeColor,
-			width: vectorWidth * globalScale,
-		}),
-		zIndex: 190,
-	});
+	ownshipSource.addFeatures([ownshipIcon]);
 
 	if (ownship.prediction) {
 		const lineFeature = new ol.Feature(new ol.geom.LineString([ownship.mapPosition, ownship.prediction]));
-		lineFeature.setStyle(vectorLineStyle);
+		lineFeature.set("scale", globalScale);
 		ownshipSource.addFeatures([lineFeature]);
 	}
 }
 
 function updateTrafficLayer(aircraft) {
-
-	trafficSource.clear();
-
 	let label = null;
-	let iconSVG = null;
+	let svgIcon = null;
 	let trafficIconFeatures = [];
 
 	for (let i = 0; i < aircraft.length; i++) {
 		if (!aircraft[i].mapLonLat) continue;
 
 		label = "";
-		iconSVG = trafficSVG;
+		svgIcon = 0;
 
 		if (aircraft[i].flight) label += aircraft[i].flight;
 
@@ -538,99 +639,36 @@ function updateTrafficLayer(aircraft) {
 
 			if (aircraft[i].alt_baro) {
 				label += aircraft[i].alt_baro;
-				if (label.includes("FL")) iconSVG = highTrafficSVG;
+				if (label.includes("FL")) svgIcon = 1;
 			}
 		}
 		else {
-			iconSVG = groundTrafficSVG;
+			svgIcon = 2;
 		}
 
-		if (label == "") label = "N/A";
-
-		const trafficIconStyle = new ol.style.Style({
-			image: new ol.style.Icon({
-				src: iconSVG,
-				rotateWithView: true,
-				rotation: (aircraft[i].track) ? aircraft[i].track : 0,
-			}),
-			text: new ol.style.Text({
-				text: label,
-				fill: labelColor,
-				backgroundFill: bgFill,
-				textAlign: 'center',
-				textBaseline: 'top',
-				font: 'bold ' + (labelSize * globalScale * 0.75) + 'em ' + labelFont,
-				offsetX: 0,
-				offsetY: 25 * globalScale,
-				padding: [1 * globalScale, 10 * globalScale, -1 * globalScale, 12 * globalScale],
-			}),
-			zIndex: 250,
-		});
-
 		if (aircraft[i].prediction) {
-			const lineFeatures = new ol.Feature(new ol.geom.LineString([aircraft[i].mapLonLat, aircraft[i].prediction]));
-			lineFeatures.setStyle(vectorLineStyle);
-			trafficIconFeatures.push(lineFeatures);
+			const lineFeature = new ol.Feature(new ol.geom.LineString([aircraft[i].mapLonLat, aircraft[i].prediction]));
+			lineFeature.set("scale", globalScale);
+			trafficIconFeatures.push(lineFeature);
 		}
 
 		const trafficIcon = new ol.Feature(new ol.geom.Point(aircraft[i].mapLonLat));
-		trafficIcon.setStyle(trafficIconStyle);
+		trafficIcon.set("label", (label != "") ? label : "N/A");
+		trafficIcon.set("scale", globalScale);
+		trafficIcon.set("textFont", 'bold ' + (labelSize * globalScale * 0.75) + 'em ' + labelFont);
+		trafficIcon.set("textPadding", [1 * globalScale, 10 * globalScale, -1 * globalScale, 12 * globalScale]);
+		trafficIcon.set("rotate", (aircraft[i].track) ? aircraft[i].track : 0);
+		trafficIcon.set("iconType", svgIcon);
 		trafficIconFeatures.push(trafficIcon);
 	}
+
+	trafficSource.clear();
 
 	if (trafficIconFeatures.length > 0) {
 		trafficSource.addFeatures(trafficIconFeatures);
 	}
 }
 
-function updateOverlayStyles() {
-	styleArrey[1] = new ol.style.Style({
-		image: new ol.style.Icon({
-			src: ownshipSVG,
-			rotateWithView: true,
-			rotation: renderPars.radTrack,
-		}),
-		text: new ol.style.Text({
-			text: getCardinalDirection(ownship.toGoDtk),
-			fill: labelColor,
-			backgroundFill: bgFill,
-			textAlign: 'center',
-			textBaseline: 'bottom',
-			font: 'bold ' + (labelSize * globalScale * 0.75) + 'em ' + labelFont,
-			offsetX: 0,
-			offsetY: 50 * globalScale,
-			padding: [1 * globalScale, 4 * globalScale, -1 * globalScale, 6 * globalScale],
-		}),
-		zIndex: 200,
-	});
-
-	styleArrey[2] = new ol.style.Style({
-		image: new ol.style.Icon({
-			src: trackBugSVG,
-			rotateWithView: true,
-			rotation: ((renderPars.radDtk) ? renderPars.radDtk : renderPars.radMagVar),
-		}),
-		zIndex: 195,
-	});
-
-	styleArrey[3] = new ol.style.Style({
-		image: new ol.style.Icon({
-			src: trackSVG,
-			rotateWithView: true,
-			rotation: renderPars.radTrack,
-		}),
-		zIndex: 200,
-	});
-
-	styleArrey[4] = new ol.style.Style({
-		image: new ol.style.Icon({
-			src: compassSVG,
-			rotateWithView: true,
-			rotation: renderPars.radMagVar,
-		}),
-		zIndex: 190,
-	});
-}
 /*End of Map Layer Update Section*/
 
 function updateNavData() {
@@ -722,8 +760,8 @@ function toggleFullscreen(event) {
 		document.exitFullscreen();
 		jQuery('#toggle_fullscreen').css('background', blueColour);
 		jQuery('#toggle_fullscreen').text('Enter Fullscreen');
-		
-		noSleep.disable();	
+
+		noSleep.disable();
 	}
 	else {
 		document.documentElement.requestFullscreen().catch((err) => {
@@ -735,9 +773,9 @@ function toggleFullscreen(event) {
 		jQuery('#toggle_fullscreen').text('Exit Fullscreen');
 
 		setTimeout(() => {
-        	noSleep.enable();
-    	}, 5000);
-		
+			noSleep.enable();
+		}, 5000);
+
 	}
 }
 
@@ -925,6 +963,12 @@ function clearFlightPlan(fullClear) {
 	ownship.atd = null;
 	ownship.etd = [];
 
+	localStorage.removeItem("atd_hrs");
+	localStorage.removeItem("atd_mins");
+
+	jQuery('#atd').css('display', 'none');
+	jQuery('#etd_input').css('display', 'inline-block');
+
 	if (fullClear) {
 		updateRouteLayer();
 		updateValidationUI();
@@ -944,6 +988,9 @@ function resetFlightPlan() {
 
 	completedRoute = [];
 	ownship.atd = null;
+
+	localStorage.removeItem("atd_hrs");
+	localStorage.removeItem("atd_mins");
 
 	jQuery('#atd').css('display', 'none');
 	jQuery('#etd_input').css('display', 'inline-block');
@@ -1407,7 +1454,7 @@ function getClosingTime() {
 }
 
 function addTime(time1, time2) {
-	if(time2.length == 0) return [];
+	if (time2.length == 0) return [];
 	let minutes = time1[1] + time2[1];
 	let hours = Math.floor(minutes / 60);
 
@@ -1600,29 +1647,26 @@ function setUIScale(increase) {
 	});
 
 	initIcons();
-	initOverlaySVGs();
 	updateRouteLayer();
 	jQuery('#zoom').text(getDecimalText(globalScale), false);
 }
 
 /* Worker messages section */
-function updateOwnshipWorker(position)
-{
-	if (position.coords)
-	{
+function updateOwnshipWorker(position) {
+	if (position.coords) {
 		ownship.gpsAccuracy = position.coords.accuracy;
 		position = [position.coords.longitude, position.coords.latitude]
-	} 
+	}
 
 	let point = (route.length == 1) ? 0 : 1;
-	ownshipWorker.postMessage({"simMode": simMode, "ownshipPos": position, "ownshipFuel": ownship.totalFuel, "navPoint": (route.length > 0) ? route[point].endPoint : null, "sectionFuelFlow": (route.length > 0) ? route[point].fuelFlow : null});
+	ownshipWorker.postMessage({ "simMode": simMode, "ownshipPos": position, "ownshipFuel": ownship.totalFuel, "navPoint": (route.length > 0) ? route[point].endPoint : null, "sectionFuelFlow": (route.length > 0) ? route[point].fuelFlow : null });
 }
 
 trafficWorker.onmessage = (msg) => {
 	if (msg.data["state"] == 0) {
 		updateTrafficLayer(msg.data["traffic"]);
 		if (updateTrafficTableAllowed) updateADSBTrafficTable(msg.data["traffic"]);
-		if(faultCounter != 60) faultCounter = 60;
+		if (faultCounter != 60) faultCounter = 60;
 	}
 	else {
 		if (faultCounter > 0) {
@@ -1641,7 +1685,6 @@ ownshipWorker.onmessage = (msg) => {
 	ownship.track = msg.data["ownship"].track;
 	ownship.magVar = msg.data["ownship"].magVar;
 	ownship.mapPosition = msg.data["ownship"].mapPosition;
-	ownship.atd = msg.data["ownship"].atd;
 	ownship.ete = msg.data["ownship"].ete;
 	ownship.routeFuelReq = msg.data["ownship"].routeFuelReq;
 	ownship.totalFuel = msg.data["ownship"].totalFuel;
@@ -1660,15 +1703,19 @@ ownshipWorker.onmessage = (msg) => {
 		airborneMode = true;
 
 		jQuery('#north_up').css('display', 'flex');
-		initOverlaySVGs();
 		centerMap();
 	}
-	
+
 	jQuery('#gs').text(getRoundText(ownship.gs));
 	jQuery('#trk').text(getThreeDigitText(normalizeAngle(ownship.track - ownship.magVar)), false);
 
-	if(airborneMode)
-	{
+	if (airborneMode) {
+		if (!ownship.atd) {
+			ownship.atd = [date.getUTCHours(), date.getUTCMinutes() + (date.getUTCSeconds() / 60)];
+			localStorage.setItem("atd_hrs", ownship.atd[0]);
+			localStorage.setItem("atd_mins", ownship.atd[1]);
+		}
+
 		const headingDiff = Math.abs(ownship.toGoDtk - (ownship.track - ownship.magVar)) % 360;
 
 		if (((headingDiff > 180) ? 360 - headingDiff : headingDiff) < 90 && !canRemoveWaypoint) {
@@ -1682,6 +1729,8 @@ ownshipWorker.onmessage = (msg) => {
 
 		if (!panMode) {
 			animateView(msg.data["deltaTime"]);
+			localStorage.setItem("view_lat", ownship.position[1]);
+			localStorage.setItem("view_lon", ownship.position[0]);
 		}
 	}
 

@@ -110,7 +110,10 @@
 					<div><button class="menu_button" id="toggle_fullscreen">Enter Fullscreen</button></div>
 					<div><button class="menu_button" id="toggle_snap">Waypoint Snap: On</button></div>
 					<div><button class="menu_button" id="show_log">Error Log</button></div><br>
-					<div class="increase_decrease_ui"><button class="ui_button" id="reduce_ui_size"></button><div id="zoom_text"><span class="mid_font">UI Scale: </span><span class="mid_font" id="zoom">1.0</span></div><button class="ui_button" id="increase_ui_size"></button></div>
+					<div class="increase_decrease_ui"><button class="ui_button" id="reduce_ui_size"></button>
+						<div id="zoom_text"><span class="mid_font">UI Scale: </span><span class="mid_font"
+								id="zoom">1.0</span></div><button class="ui_button" id="increase_ui_size"></button>
+					</div>
 				</div>
 				<div id="menu_flight_plan_buttons" class="menu_area">
 					<div><button class="menu_button" id="remove_last_waypoint">Remove Last Waypoint</button></div><br>
@@ -118,15 +121,18 @@
 					<div><button class="menu_button" id="save_flight_plan">Save Flight Plan</button></div>
 					<div><button class="menu_button" id="reset_flight_plan">Reset Flight Plan</button></div><br>
 					<div><button class="menu_button" id="clear_flight_plan">Clear Flight Plan</button></div>
-				</div>	
+				</div>
 				<div id="menu_nav_aids" class="menu_area">
 					<div><button class="menu_button" id="set_dme_1">Nav Aid 1: Not Set</button></div>
 					<div><button class="menu_button" id="clear_dme_1">Clear Nav Aid 2</button></div><br>
 					<div><button class="menu_button" id="set_dme_2">Nav Aid 1 2: Not Set</button></div>
 					<div><button class="menu_button" id="clear_dme_2">Clear Nav Aid 2</button></div><br>
-				</div>	
+				</div>
 				<div id="menu_adsb_traffic" class="menu_area">
-					<div class="increase_decrease_ui"><button class="ui_button" id="reduce_qnh"></button><div id="qnh_text"><span class="mid_font">QNH: </span><span class="mid_font" id="qnh">1013</span></div><button class="ui_button" id="increase_qnh"></button></div>
+					<div class="increase_decrease_ui"><button class="ui_button" id="reduce_qnh"></button>
+						<div id="qnh_text"><span class="mid_font">QNH: </span><span class="mid_font"
+								id="qnh">1013</span></div><button class="ui_button" id="increase_qnh"></button>
+					</div>
 					<div class="table_scroll" id="adsb_traffic_table_scroll">
 						<table id='adsb_traffic_table' class="side_table">
 							<thead>
@@ -144,7 +150,7 @@
 							</tbody>
 						</table>
 					</div>
-				</div>		
+				</div>
 			</div>
 			<div id="flight_items">
 				<div class="menu_header">
@@ -152,7 +158,8 @@
 					<div><span class="mid_font">Departure Time: </span><span id="etd_input"><input type="number"
 								class="mid_font" id="etd_hours" step="1" min="0" max="23"
 								value="00"><span>:</span><input type="number" class="mid_font" id="etd_minutes" step="1"
-								min="0" max="59" value="00"></span><span class="mid_font" id="atd">--:--</span></div><br>
+								min="0" max="59" value="00"></span><span class="mid_font" id="atd">--:--</span></div>
+					<br>
 					<div><span class="mid_font">Arrival: </span><span class="mid_font" id="destination">N/A</span></div>
 					<div><span class="mid_font">Arrival Time: </span><span class="mid_font"
 							id="fp_eta">00:00</span><span class="mid_font" id="fp_eta"> z</span></div>
@@ -223,7 +230,7 @@
 		let params = new URLSearchParams(document.location.search);
 
 		if (!params.get("sim")) {
-			document.write('<script src="libs/ol-custom-10.6.0.js"><' + '/script>');
+			document.write('<script src="libs/ol-custom-10.6.1.js"><' + '/script>');
 		}
 	</script>
 	<script>
@@ -237,6 +244,7 @@
 	<script src="libs/geodesy-custom-2.3.0.js"></script>
 	<script src="libs/nosleep-0.12.0.min.js"></script>
 	<script src="defaults.js"></script>
+	<script src="utilities.js"></script>
 	<script src="layers.js"></script>
 	<script src="shapes.js"></script>
 	<script src="segmentObject.js"></script>

@@ -18,13 +18,13 @@ function createBaseLayers() {
 		type: 'base',
 	}));*/
 
-	maps.forEach(element => {
+	maps.forEach((element) => {
 		if(!element['url'] || element['url'] == "") {
 			return;
 		};
 
-		vfrCharts.push(new ol.layer.Tile({
-			source: new ol.source.XYZ({
+		vfrCharts.push(new ol.layer.TileLayer({
+			source: new ol.source.TileSource({
 				"url": url + element['url'],
 				maxZoom: 20,
 				transition: 0,
