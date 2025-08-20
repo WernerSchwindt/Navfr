@@ -335,6 +335,11 @@ input {
 	height: 100%;
 }
 
+#map_layer_items {
+	display: none;
+	height: 100%;
+}
+
 .menu_area{
 	background-color: #313131;
 	padding-bottom: calc(1em * var(--SCALE));

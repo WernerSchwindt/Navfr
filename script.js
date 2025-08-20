@@ -2,9 +2,6 @@
 
 const noSleep = new NoSleep();
 let date = null;
-let layers = null;
-let layersGroup = null;
-let OLMap = null;
 let timers = {};
 let route = [];
 let completedRoute = [];
@@ -49,8 +46,6 @@ let trafficSVG = null;
 let groundTrafficSVG = null;
 let highTrafficSVG = null;
 let updateTrafficTableAllowed = false;
-let styleArrey = [];
-let vectorLineStyle = null;
 let trafficBackground = null;
 
 const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -170,220 +165,6 @@ function initOverlaySVGs() {
 	groundTrafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], 'grey', '#000000', 1));
 }
 
-function initMap() {
-	layersGroup = createBaseLayers();
-	layers = layersGroup.getLayers();
-
-	const routeStyle = [{
-		filter: ['==', ['geometry-type'], "Point"],
-		style: {
-			'circle-radius': ['*', pointRadius, ['get', 'scale']],
-			'circle-fill-color': routeColor,
-			'circle-stroke-color': 'white',
-			'circle-stroke-width': ['*', pointStroke, ['get', 'scale']],
-			'text-value': ['get', 'name'],
-			'text-fill-color': labelColor,
-			'text-background-fill-color': bgFill,
-			'text-align': 'left',
-			'text-baseline': 'bottom',
-			'text-font': ['get', 'textFont'],
-			'text-offset-x': ['*', 30, ['get', 'scale']],
-			'text-offset-y': ['*', 11, ['get', 'scale']],
-			'text-padding': ['get', 'textPadding'],
-		},
-	},
-	{
-		else: true,
-		filter: ['==', ['get', 'isActive'], true],
-		style: {
-			'stroke-color': activeRouteColor,
-			'stroke-width': ['*', activeRouteWidth, ['get', 'scale']],
-		},
-	},
-	{
-		else: true,
-		style: {
-			'stroke-color': routeColor,
-			'stroke-width': ['*', routeWidth, ['get', 'scale']],
-		}
-	}];
-
-	const routeLayer = new ol.layer.VectorLayer({
-		source: routeSource,
-		style: routeStyle,
-		updateWhileAnimating: true,
-		renderBuffer: 60,
-	});
-
-	layers.push(routeLayer);
-
-	const ownshipStyle = [{
-		filter: ['==', ['geometry-type'], "LineString"],
-		style: {
-			'stroke-color': routeColor,
-			'stroke-width': ['*', vectorWidth, ['get', 'scale']],
-			'z-index': 1,
-		},
-	},
-	{
-		else: true,
-		style: {
-			'circle-radius': ['*', 153, ['get', 'scale']],
-			'circle-stroke-width': ['*', 32, ['get', 'scale']],
-			'circle-stroke-color': 'rgba(255,255,255,0.8)',
-			'text-value': ['get', 'location'],
-			'text-fill-color': labelColor,
-			'text-background-fill-color': bgFill,
-			'text-align': 'left',
-			'text-baseline': 'bottom',
-			'text-font': ['get', 'textFont'],
-			'text-offset-x': ['get', 'scale'],
-			'text-offset-y': ['*', 50, ['get', 'scale']],
-			'text-padding': ['get', 'textPadding'],
-		}
-	},
-	{
-		filter: ['==', ['geometry-type'], "Point"],
-		style: {
-			'icon-src': compassSVG,
-			'icon-rotate-with-view': true,
-			'icon-rotation': ['get', 'magVar'],
-			'icon-scale': ['get', 'scale'],
-			'z-index': 0,
-		}
-	},
-	{
-		filter: ['==', ['geometry-type'], "Point"],
-		style: {
-			'icon-src': trackBugSVG,
-			'icon-rotate-with-view': true,
-			'icon-rotation': ['get', 'trackBug'],
-			'z-index': 1,
-		}
-	},
-	{
-		filter: ['==', ['geometry-type'], "Point"],
-		style: {
-			'icon-src': trackSVG,
-			'icon-rotate-with-view': true,
-			'icon-rotation': ['get', 'track'],
-			'z-index': 2,
-		}
-	},
-	{
-		filter: ['==', ['get', 'airborne'], false],
-		style: {
-			'icon-src': ownshipSVG,
-			'icon-rotate-with-view': true,
-			'icon-rotation': ['get', 'track'],
-			'z-index': 2,
-		}
-	},
-	{
-		filter: ['==', ['get', 'airborne'], true],
-		style: {
-			'icon-src': ownshipAirborneSVG,
-			'icon-rotate-with-view': true,
-			'icon-rotation': ['get', 'track'],
-			'z-index': 2,
-		}
-	}];
-
-	const ownshipLayer = new ol.layer.VectorLayer({
-		source: ownshipSource,
-		style: ownshipStyle,
-		updateWhileAnimating: true,
-		renderBuffer: 60,
-	});
-
-	layers.push(ownshipLayer);
-
-	const trafficStyle = [{
-		filter: ['==', ['geometry-type'], "LineString"],
-		style: {
-			'stroke-color': routeColor,
-			'stroke-width': ['*', vectorWidth, ['get', 'scale']],
-			'z-index': 1,
-		},
-	},
-	{
-		else: true,
-		style: {
-			
-			'circle-radius': ['*', 16, ['get', 'scale']],
-			'circle-fill-color': 'rgba(255,255,255,0.8)',
-			'text-value': ['get', 'label'],
-			'text-fill-color': labelColor,
-			'text-background-fill-color': bgFill,
-			'text-align': 'center',
-			'text-baseline': 'top',
-			'text-font': ['get', 'textFont'],
-			'text-offset-x': 0,
-			'text-offset-y': ['*', 25, ['get', 'scale']],
-			'text-padding': ['get', 'textPadding'],
-			'z-index': 0,
-		}
-	},
-	{
-		filter: ['==', ['get', 'iconType'], 0],
-		style: {
-			'icon-src': trafficSVG,
-			'icon-rotate-with-view': true,
-			'icon-rotation': ['get', 'rotate'],
-			'icon-scale': ['get', 'scale'],
-			'z-index': 2,
-		}
-	},
-	{
-		filter: ['==', ['get', 'iconType'], 1],
-		style: {
-			'icon-src': highTrafficSVG,
-			'icon-rotate-with-view': true,
-			'icon-rotation': ['get', 'rotate'],
-			'icon-scale': ['get', 'scale'],
-			'z-index': 2,
-		}
-	},
-	{
-		filter: ['==', ['get', 'iconType'], 2],
-		style: {
-			'icon-src': groundTrafficSVG,
-			'icon-rotate-with-view': true,
-			'icon-rotation': ['get', 'rotate'],
-			'icon-scale': ['get', 'scale'],
-			'z-index': 2,
-		}
-	}];
-
-	const trafficLayer = new ol.layer.VectorLayer({
-		source: trafficSource,
-		style: trafficStyle,
-		updateWhileAnimating: true,
-		renderBuffer: 60,
-	});
-
-	layers.push(trafficLayer);
-
-	OLMap = new ol.Map({
-		target: 'map_canvas',
-		layers: layersGroup,
-		view: new ol.View({
-			center: ol.proj.fromLonLat([centerLon, centerLat]),
-			zoom: zoomLvl,
-			multiWorld: true,
-		}),
-		controls: [],
-		interactions: new ol.interaction.defaults({
-			altShiftDragRotate: false,
-			pinchRotate: false,
-			doubleClickZoom: false,
-			dragPan: true,
-			dragZoom: false
-		}),
-		maxTilesLoading: 4,
-	});
-}
-
 function initTimers() {
 	timers.clock = window.setInterval(updateClock, 500);
 	updateClock();
@@ -475,6 +256,9 @@ function initButtons() {
 	});
 	jQuery('#open_airport_info').click(() => {
 		openSideMenu("airport_info");
+	});
+	jQuery('#maps').click(() => {
+		openSideMenu("maps");
 	});
 	jQuery('#show_log').click(() => {
 		switchSideMenu("show_log");
@@ -780,79 +564,67 @@ function toggleFullscreen(event) {
 }
 
 function openSideMenu(layout) {
+	jQuery('#menu').css('width', '100%');
+
 	switch (layout) {
 		case "flight_plan":
 			jQuery('#menu_title').text('Flight Plan');
 			jQuery('#flight_items').css('display', 'block');
-			jQuery('#menu').css('width', '100%');
 
 			generateFlightPlanTable();
 			break;
 		case "fuel_plan":
 			jQuery('#menu_title').text('Fuel Plan');
 			jQuery('#fuel_items').css('display', 'block');
-			jQuery('#menu').css('width', '100%');
 
 			generateFuelPlanTable();
 			break;
 		case "airport_info":
 			jQuery('#menu_title').text('Airport Info');
 			jQuery('#airport_items').css('display', 'block');
-			jQuery('#menu').css('width', '100%');
+			break;
+		case "maps":
+			jQuery('#menu_title').text('VFR Maps');
+			jQuery('#map_layer_items').css('display', 'block');
+
+			generateMapButtons();
 			break;
 		default:
 			jQuery('#menu_title').text('Menu');
 			jQuery('#menu_items').css('display', 'block');
-			jQuery('#menu').css('width', '100%');
 			updateTrafficTableAllowed = true;
 	}
 }
 
 async function switchSideMenu(layout) {
+	if(layout == "show_menu_setting_buttons" || layout == "show_menu_flight_plan_buttons" || layout == "show_menu_nav_aids" || layout == "show_menu_adsb_traffic"){
+		jQuery('#show_menu_setting_buttons').css('background', backgroundColour);
+		jQuery('#show_menu_flight_plan_buttons').css('background', backgroundColour);
+		jQuery('#show_menu_nav_aids').css('background', backgroundColour);
+		jQuery('#show_menu_adsb_traffic').css('background', backgroundColour);
+		jQuery('#menu_setting_buttons').css('display', 'none');
+		jQuery('#menu_flight_plan_buttons').css('display', 'none');
+		jQuery('#menu_nav_aids').css('display', 'none');
+		jQuery('#menu_adsb_traffic').css('display', 'none');
+		jQuery('#back_button').css('display', 'none');
+	}
+
 	switch (layout) {
 		case "show_menu_setting_buttons":
 			jQuery('#show_menu_setting_buttons').css('background', foregroundColour);
-			jQuery('#show_menu_flight_plan_buttons').css('background', backgroundColour);
-			jQuery('#show_menu_nav_aids').css('background', backgroundColour);
-			jQuery('#show_menu_adsb_traffic').css('background', backgroundColour);
 			jQuery('#menu_setting_buttons').css('display', 'block');
-			jQuery('#menu_flight_plan_buttons').css('display', 'none');
-			jQuery('#menu_nav_aids').css('display', 'none');
-			jQuery('#menu_adsb_traffic').css('display', 'none');
-			jQuery('#back_button').css('display', 'none');
 			break;
 		case "show_menu_flight_plan_buttons":
-			jQuery('#show_menu_setting_buttons').css('background', backgroundColour);
 			jQuery('#show_menu_flight_plan_buttons').css('background', foregroundColour);
-			jQuery('#show_menu_nav_aids').css('background', backgroundColour);
-			jQuery('#show_menu_adsb_traffic').css('background', backgroundColour);
-			jQuery('#menu_setting_buttons').css('display', 'none');
 			jQuery('#menu_flight_plan_buttons').css('display', 'block');
-			jQuery('#menu_nav_aids').css('display', 'none');
-			jQuery('#menu_adsb_traffic').css('display', 'none');
-			jQuery('#back_button').css('display', 'none');
 			break;
 		case "show_menu_nav_aids":
-			jQuery('#show_menu_setting_buttons').css('background', backgroundColour);
-			jQuery('#show_menu_flight_plan_buttons').css('background', backgroundColour);
 			jQuery('#show_menu_nav_aids').css('background', foregroundColour);
-			jQuery('#show_menu_adsb_traffic').css('background', backgroundColour);
-			jQuery('#menu_setting_buttons').css('display', 'none');
-			jQuery('#menu_flight_plan_buttons').css('display', 'none');
 			jQuery('#menu_nav_aids').css('display', 'block');
-			jQuery('#menu_adsb_traffic').css('display', 'none');
-			jQuery('#back_button').css('display', 'none');
 			break;
 		case "show_menu_adsb_traffic":
-			jQuery('#show_menu_setting_buttons').css('background', backgroundColour);
-			jQuery('#show_menu_flight_plan_buttons').css('background', backgroundColour);
-			jQuery('#show_menu_nav_aids').css('background', backgroundColour);
 			jQuery('#show_menu_adsb_traffic').css('background', foregroundColour);
-			jQuery('#menu_setting_buttons').css('display', 'none');
-			jQuery('#menu_flight_plan_buttons').css('display', 'none');
-			jQuery('#menu_nav_aids').css('display', 'none');
 			jQuery('#menu_adsb_traffic').css('display', 'block');
-			jQuery('#back_button').css('display', 'none');
 			break;
 		case "show_log":
 			jQuery('#menu_title').text('Error Log');
@@ -902,12 +674,46 @@ function closeSideMenu() {
 	jQuery('#flight_items').css('display', 'none');
 	jQuery('#fuel_items').css('display', 'none');
 	jQuery('#airport_items').css('display', 'none');
+	jQuery('#map_layer_items').css('display', 'none');
 	jQuery('#log_items').css('display', 'none');
 	jQuery('#available_fp_items').css('display', 'none');
 	jQuery('#back_button').css('display', 'none');
 	jQuery('#menu').css('width', '0');
 	jQuery('#menu_title').text('');
 	updateTrafficTableAllowed = false;
+}
+
+function generateMapButtons() {
+	const vtcBody = document.getElementById('vtc');
+	const vncBody = document.getElementById('vnc');
+	const chartBody = document.getElementById('charts');
+	vtcBody.innerHTML = "";
+	vncBody.innerHTML = "";
+	chartBody.innerHTML = "";
+
+	layers.getArray().forEach((element) => {
+		if (element.get('type') == 'vtc' || element.get('type') == 'vnc' || element.get('type') == 'chart') {
+			const newButton = document.createElement('button');
+			newButton.innerText = element.get('title') + ((element.getVisible()) ? ": On" : ": Off");
+			newButton.className = "menu_button";
+			newButton.style = "background: " + ((element.getVisible()) ? greenColour : blueColour);
+			newButton.addEventListener('click', () => {
+				element.setVisible(!element.getVisible());
+				newButton.style = "background: " + ((element.getVisible()) ? greenColour : blueColour);
+				newButton.innerText = element.get('title') + ((element.getVisible()) ? ": On" : ": Off");
+			});
+
+			if (element.get('type') == 'vtc') {
+				vtcBody.appendChild(newButton);
+			}
+			else if(element.get('type') == 'vnc'){
+				vncBody.appendChild(newButton);
+			}
+			else{
+				chartBody.appendChild(newButton);
+			}
+		}
+	});
 }
 
 function toggleSnap() {
@@ -1638,14 +1444,6 @@ function setUIScale(increase) {
 	document.documentElement.style.setProperty("--SCALE", globalScale);
 	localStorage.setItem("globalScale", globalScale);
 
-	styleArrey[0] = new ol.style.Style({
-		image: new ol.style.Circle({
-			radius: 153 * globalScale,
-			stroke: new ol.style.Stroke({ color: [255, 255, 255, 0.8], width: 32 * globalScale }),
-		}),
-		zIndex: 180,
-	});
-
 	initIcons();
 	updateRouteLayer();
 	jQuery('#zoom').text(getDecimalText(globalScale), false);
@@ -1736,7 +1534,6 @@ ownshipWorker.onmessage = (msg) => {
 
 	updateOwnshipLayer();
 };
-
 /* End of Worker messages section */
 
 initialize();
