@@ -43,18 +43,30 @@ const maps = [
         extent: [16248675.0412, -4353056.785, 16894249.0688, -3930020.7705],
         type: "vnc",
     },
-     /* { id: "rockhampton_vnc", name: "Rockhampton VNC", url: "" },
-      { id: "perth_vnc", name: "Perth VNC", url: "" }*/
-   /* { 
-        name: "Wiliantown VTC", 
-        layer: "ne:WLM_VTC",
-        extent: [],
-    },*/
-];
-
-//Edit this to add you own charts
-const airpotCharts = [
-    { id: "williamtown", name: "Williamtown (YWLM)", url: "" }
+    {
+        name: "Williamtown (YWLM) Chart", 
+        layer: "ne:ywlm_chart", 
+        extent: [16899538.4111, -3871844.3565, 16904834.4186, -3864359.7923],
+        type: "chart",
+    },
+    {
+        name: "Bankstown (YSBK) Chart", 
+        layer: "ne:ysbk_chart", 
+        extent: [16806777.1934, -4020340.3884, 16809540.8228, -4016485.9542],
+        type: "chart",
+    },
+    {
+        name: "Tamworth (YSTW) Chart", 
+        layer: "ne:ystw_chart", 
+        extent: [16789959.746, -3645544.5068, 16793487.4024, -3640599.2952],
+        type: "chart",
+    },
+    {
+        name: "Jandakot (YPJT) Chart", 
+        layer: "ne:ypjt_chart", 
+        extent: [12897914.8458, -3778134.1664, 12901430.8889, -3773172.6832],
+        type: "chart",
+    },
 ];
 
 //Styling
@@ -71,11 +83,13 @@ const pointStroke = 2;
 const pointRadius = 6;
 const backgroundColour = '#262626';
 const foregroundColour = '#313131';
-const blueColour = '#0066cc';
+const blueColour = '#3c579c';
 const purpleColour = '#6600cc';
-const greenColour = '#00cc22';
-const amberColour = '#cc9900';
+const greenColour = '#3c9c6f';
+const amberColour = '#9c793c';
 const redColour = '#cc0000';
+const ownshipColour = '#13eb85';
+const warningColour = '#eb9b13';
 const darkGreenColour = '#00400b';
 const mainButtonSize = 1.5;
 const overlayButtonSize = 1.25;

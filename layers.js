@@ -101,7 +101,7 @@ function initMap() {
 			'text-value': ['get', 'location'],
 			'text-fill-color': labelColor,
 			'text-background-fill-color': bgFill,
-			'text-align': 'left',
+			'text-align': 'center',
 			'text-baseline': 'bottom',
 			'text-font': ['get', 'textFont'],
 			'text-offset-x': ['get', 'scale'],
@@ -120,7 +120,7 @@ function initMap() {
 		}
 	},
 	{
-		filter: ['==', ['geometry-type'], "Point"],
+		filter: ['all', ['==', ['geometry-type'], "Point"], ['has', 'trackBug']],
 		style: {
 			'icon-src': trackBugSVG,
 			'icon-rotate-with-view': true,

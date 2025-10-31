@@ -22,6 +22,7 @@ body {
 	overflow: hidden;
 	height: 100%;
 	margin: 0px;
+	padding: 0px;
 	font-family: "Arial";
 	font-weight: bold;
 }
@@ -337,7 +338,8 @@ input {
 
 #map_layer_items {
 	display: none;
-	height: 100%;
+	height: calc(100vh - (7.3em * var(--SCALE)));
+	overflow: scroll;
 }
 
 .menu_area{

@@ -156,7 +156,7 @@ function initIcons() {
 
 function initOverlaySVGs() {
 	ownshipSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['cessna'], 'grey', '#000000', 1));
-	ownshipAirborneSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['cessna'], greenColour, '#000000', 1));
+	ownshipAirborneSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['cessna'], ownshipColour, '#000000', 1));
 	compassSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['compass_rose'], '#000000', '#000000', 1));
 	trackSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['track'], '#000000', '#ffffff', 1));
 	trackBugSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['track_bug'], '#000000', '#ffffff', 1));
@@ -227,7 +227,8 @@ function initEvents() {
 	addEventListener("fullscreenchange", (evt) => {
 		if (!document.fullscreenElement) {
 			jQuery('#toggle_fullscreen').text('Enter Fullscreen');
-			jQuery('#toggle_fullscreen').css('background', '#0059b3');
+			jQuery('#toggle_fullscreen').css('background', blueColour);
+			jQuery('#toggle_fullscreen').css("color", labelColor);
 			noSleep.disable();
 		}
 	});
@@ -388,7 +389,7 @@ function updateOwnshipLayer() {
 	const ownshipIcon = new ol.Feature(viewPoint);
 	ownshipIcon.set("scale", globalScale);
 	ownshipIcon.set("magVar", renderPars.radMagVar);
-	ownshipIcon.set("trackBug", (renderPars.radDtk) ? renderPars.radDtk : renderPars.radMagVar);
+	if(renderPars.radDtk) ownshipIcon.set("trackBug", renderPars.radDtk);
 	ownshipIcon.set("track", renderPars.radTrack);
 	ownshipIcon.set("airborne", airborneMode);
 	ownshipIcon.set("location", (ownship.toGoDtk) ? getCardinalDirection(ownship.toGoDtk) : "-");
@@ -464,7 +465,7 @@ function updateNavData() {
 
 	if (ownship.gpsAccuracy && ownship.gpsAccuracy > 10) {
 		jQuery('#gps').css('display', 'flex');
-		document.getElementById('gps').innerHTML = svgShapeToSVG(ui['satellite'], amberColour, '#ffffff', overlayButtonSize * globalScale);
+		document.getElementById('gps').innerHTML = svgShapeToSVG(ui['satellite'], warningColour, '#ffffff', overlayButtonSize * globalScale);
 	}
 	else if (ownship.gpsAccuracy) {
 		jQuery('#gps').css('display', 'none');
@@ -497,7 +498,7 @@ function updateNavData() {
 		jQuery('#eta').text(getTimeText(eta, false));
 		if (landingFuel > 0) jQuery('#landing_fuel').text(getDecimalText(landingFuel), false);
 
-		if (ete[1] < 1) {
+		if (ete[1] < 1 && ete[0] == 0) {
 			jQuery('#ete').text(getTwoDigitText(ete[1] * 60));
 		}
 		else {
@@ -517,7 +518,7 @@ function updateNavData() {
 		jQuery('#eta').text(getTimeText(addTime(eta, ownship.ete), false));
 		if (landingFuel > 0) jQuery('#landing_fuel').text(getDecimalText(landingFuel - ownship.routeFuelReq), false);
 
-		if (ownship.ete[1] < 1) {
+		if (ownship.ete[1] < 1 && ownship.ete[0] == 0) {
 			jQuery('#ete').text(getTwoDigitText(ownship.ete[1] * 60));
 		}
 		else {
@@ -558,7 +559,7 @@ function toggleFullscreen(event) {
 
 		setTimeout(() => {
 			noSleep.enable();
-		}, 5000);
+		}, 20000);
 
 	}
 }
@@ -696,10 +697,10 @@ function generateMapButtons() {
 			const newButton = document.createElement('button');
 			newButton.innerText = element.get('title') + ((element.getVisible()) ? ": On" : ": Off");
 			newButton.className = "menu_button";
-			newButton.style = "background: " + ((element.getVisible()) ? greenColour : blueColour);
+			newButton.style = "background: " + ((element.getVisible()) ? greenColour : blueColour) + ";";
 			newButton.addEventListener('click', () => {
 				element.setVisible(!element.getVisible());
-				newButton.style = "background: " + ((element.getVisible()) ? greenColour : blueColour);
+				newButton.style = "background: " + ((element.getVisible()) ? greenColour : blueColour) + ";";
 				newButton.innerText = element.get('title') + ((element.getVisible()) ? ": On" : ": Off");
 			});
 
@@ -1121,13 +1122,12 @@ function updateADSBTrafficTable(aircraft) {
 	for (let i = 0; i < aircraft.length; ++i) {
 		newRow = document.createElement('tr');
 
-		rowConstruct = '<td class="mid_font">' + ((aircraft[i].hex) ? aircraft[i].hex : "-") + '</td>';
-		rowConstruct += '<td class="mid_font">' + ((aircraft[i].flight) ? aircraft[i].flight.trim() : "-") + '</td>';
+		rowConstruct = '<td class="mid_font">' + ((aircraft[i].flight) ? aircraft[i].flight.trim() : "-") + '</td>';
 		rowConstruct += '<td class="mid_font">' + ((aircraft[i].squawk) ? aircraft[i].squawk : "-") + '</td>';
-		rowConstruct += '<td class="mid_font">' + ((aircraft[i].normalizedTrack) ? aircraft[i].normalizedTrack : "-") + '</td>';;
-		rowConstruct += '<td class="mid_font">' + ((aircraft[i].alt_baro) ? aircraft[i].alt_baro : "-") + '</td>';;
-		rowConstruct += '<td class="mid_font">' + ((aircraft[i].gs) ? aircraft[i].gs : "-") + '</td>';;
-		rowConstruct += '<td class="mid_font">' + ((aircraft[i].rssi) ? aircraft[i].rssi : "-") + '</td>';;
+		rowConstruct += '<td class="mid_font">' + ((aircraft[i].normalizedTrack) ? aircraft[i].normalizedTrack : "-") + '</td>';
+		rowConstruct += '<td class="mid_font">' + ((aircraft[i].alt_baro) ? aircraft[i].alt_baro : "-") + '</td>';
+		rowConstruct += '<td class="mid_font">' + ((aircraft[i].gs) ? aircraft[i].gs : "-") + '</td>';
+		rowConstruct += '<td class="mid_font">' + ((aircraft[i].rssi) ? aircraft[i].rssi : "-") + '</td>';
 		newRow.innerHTML = rowConstruct;
 		newBody.appendChild(newRow);
 	}

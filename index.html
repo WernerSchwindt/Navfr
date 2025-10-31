@@ -6,7 +6,7 @@
 	<title>NaVFR</title>
 	<link href="style.css" rel="stylesheet" type="text/css" />
 	<link href="libs\ol.css" rel="stylesheet" type="text/css" />
-	<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+	<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport" />
 </head>
 
 <body>
@@ -80,7 +80,7 @@
 					<tr>
 						<td colspan=2>
 							<div><span class="small_font">EST LDG FUEL: </span><span class="big_font"
-									id="landing_fuel">-.-</span><span class="small_font"> gal</span></div>
+									id="landing_fuel">-.-</span><span class="small_font"> lts</span></div>
 						</td>
 					</tr>
 				</table>
@@ -137,7 +137,6 @@
 						<table id='adsb_traffic_table' class="side_table">
 							<thead>
 								<tr>
-									<td class="mid_font">HEX ID</td>
 									<td class="mid_font">CALLSIGN</td>
 									<td class="mid_font">SQUAWK</td>
 									<td class="mid_font">Track (°T)</td>
@@ -191,12 +190,12 @@
 			<div id="fuel_items">
 				<div class="menu_header">
 					<br>
-					<div><span class="mid_font">Useable Fuel: </span><input type="number" class="mid_font"
-							id="total_fuel" step="0.1" min="0" value="0.0" style="width: 3.7em;"><span class="mid_font">
-							gal</span></div>
-					<br>
+					<div>
+						<span class="mid_font">Useable Fuel: </span><input type="number" class="mid_font"
+							id="total_fuel" step="0.1" min="0" value="0.0" style="width: 3.7em;"><span class="mid_font">lts</span></div>
+						<br>
 					<div><span class="mid_font">Fuel Required: </span><span class="mid_font"
-							id="required_fuel">-.-</span><span class="mid_font"> gal</span></div>
+							id="required_fuel">-.-</span><span class="mid_font"> lts</span></div>
 				</div>
 				<div class="table_scroll" id="fuel_table_scroll">
 					<table id='fuel_table' class="side_table">
@@ -204,10 +203,10 @@
 							<tr>
 								<td class="mid_font">WP NAME</td>
 								<td class="mid_font">ALT (ft)</td>
-								<td class="mid_font">FUEL FLOW (gph)</td>
+								<td class="mid_font">FUEL FLOW (lph)</td>
 								<td class="mid_font">ETE</td>
-								<td class="mid_font">FUEL REQUIRED (gal)</td>
-								<td class="mid_font">FUEL REMAINING (gal)</td>
+								<td class="mid_font">FUEL REQUIRED (lts)</td>
+								<td class="mid_font">FUEL REMAINING (lts)</td>
 							</tr>
 						</thead>
 						<tbody>
