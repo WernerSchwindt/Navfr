@@ -6,7 +6,10 @@
 	<title>NaVFR</title>
 	<link href="style.css" rel="stylesheet" type="text/css" />
 	<link href="libs\ol.css" rel="stylesheet" type="text/css" />
-	<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport" />
+	<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+	<meta name="apple-mobile-web-app-title" content="NaVFR">
 </head>
 
 <body>
@@ -124,8 +127,8 @@
 				</div>
 				<div id="menu_nav_aids" class="menu_area">
 					<div><button class="menu_button" id="set_dme_1">Nav Aid 1: Not Set</button></div>
-					<div><button class="menu_button" id="clear_dme_1">Clear Nav Aid 2</button></div><br>
-					<div><button class="menu_button" id="set_dme_2">Nav Aid 1 2: Not Set</button></div>
+					<div><button class="menu_button" id="clear_dme_1">Clear Nav Aid 1</button></div><br>
+					<div><button class="menu_button" id="set_dme_2">Nav Aid 2: Not Set</button></div>
 					<div><button class="menu_button" id="clear_dme_2">Clear Nav Aid 2</button></div><br>
 				</div>
 				<div id="menu_adsb_traffic" class="menu_area">
@@ -240,10 +243,9 @@
 
 		if (!params.get("sim")) {
 			document.write('<script src="libs/ol-custom-10.6.1.js"><' + '/script>');
-		}
-	</script>
-	<script>
-		if (params.get("sim")) {
+		}else {
+			document.write('<script src="trafficWorker.js" type="text/javascript"></scr' + 'ipt>');
+			document.write('<script src="ownshipWorker.js" type="text/javascript"></scr' + 'ipt>');
 			document.write('<script src="libs/ol-custom-6.15.1.js" type="text/javascript"></scr' + 'ipt>');
 		} 
 	</script>

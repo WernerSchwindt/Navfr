@@ -1,54 +1,46 @@
 "use strict";
 
-importScripts('libs/geodesy-custom-2.3.0.js');
-importScripts('libs/geomag2020.js');
-importScripts('utilities.js');
-importScripts('defaults.js');
+let workerGeoMag = null;
+let navPoint = null;
+let lastPosition = null;
 
-const geoMag = geoMagFactory(cof2Obj());
-const navPoint = new geodesy.LatLon(0, 0);
-const lastPosition = new geodesy.LatLon(0, 0);
-
-let libsInit = false;
-let ownship = {};
-let renderPars = {};
+let workerLibsInit = false;
+let workerOwnship = {};
+let workerRenderPars = {};
 let firstPosition = true;
-let speedSamples = [];
+let WorkerSpeedSamples = [];
 let airborneCount = 3;
 let hours = 0;
-let airborneMode = false;
+let workerAirborneMode = false;
 let fixTime = null;
 let lastFixTime = null;
 let deltaTime = null;
-let averageSpeed = null;
+let workerAverageSpeed = null;
 
-ownship.position = new geodesy.LatLon(0, 0);
-ownship.prediction = new geodesy.LatLon(0, 0);
-ownship.gs = null;
-ownship.track = null;
-ownship.magVar = null;
-ownship.mapPosition = null;
-ownship.ete = [];
-ownship.routeFuelReq = null;
-ownship.totalFuel = null;
-ownship.toGoDis = null;
-ownship.toGoDtk = null;
-ownship.toGs = null;
+workerOwnship.gs = null;
+workerOwnship.aveGs = null;
+workerOwnship.track = null;
+workerOwnship.magVar = null;
+workerOwnship.mapPosition = null;
+workerOwnship.ete = [];
+workerOwnship.routeFuelReq = null;
+workerOwnship.totalFuel = null;
+workerOwnship.toGoDis = null;
+workerOwnship.toGoDtk = null;
+workerOwnship.toGs = null;
 
-renderPars.radTrack = null;
-renderPars.radMagVar = null;
-renderPars.radDtk = null;
+workerRenderPars.radTrack = null;
+workerRenderPars.radMagVar = null;
+workerRenderPars.radDtk = null;
+workerRenderPars.radWind = null;
 
 onmessage = (e) => {
-	if (!libsInit) {
-		libsInit = true;
-
-		if (e.data["simMode"]) {
-			importScripts('libs/ol-custom-6.15.1.js');
-		}
-		else {
-			importScripts('libs/ol-custom-10.6.1.js');
-		}
+	if (!workerLibsInit) {
+		importScripts('libs/ol-custom-10.6.1.js');
+		importScripts('libs/geodesy-custom-2.3.0.js');
+		importScripts('libs/geomag2020.js');
+		importScripts('utilities.js');
+		importScripts('defaults.js');
 	}
 
 	updateOwnship(e.data);
@@ -60,75 +52,92 @@ onmessage = (e) => {
 		data["ownshipPos"] = ownship [lat, lon] Note: either from GPS of from Sim.
 		data["navPoint"] = newpoint [lat, lon]
 		data["sectionFuelFlow"] = fuel flow
+		data["ownshipFuel"] = total fuel
+		data["sectionWindDir"] = windDir
 */
 function updateOwnship(data) {
 
+	if (!workerLibsInit) {
+		workerLibsInit = true;
+		workerGeoMag = geoMagFactory(cof2Obj());
+		navPoint = new geodesy.LatLon(0, 0);
+		lastPosition = new geodesy.LatLon(0, 0);
+		workerOwnship.position = new geodesy.LatLon(0, 0);
+		workerOwnship.prediction = new geodesy.LatLon(0, 0);
+	}
+
 	const localDate = new Date();
 	fixTime = localDate.getTime();
-	ownship.totalFuel = data["ownshipFuel"];
-	ownship.position.lat = data["ownshipPos"][1];
-	ownship.position.lon = data["ownshipPos"][0];
+	workerOwnship.totalFuel = data["ownshipFuel"];
+	workerOwnship.position.lat = data["ownshipPos"][1];
+	workerOwnship.position.lon = data["ownshipPos"][0];
 
 	if (!firstPosition) {
 		deltaTime = fixTime - lastFixTime;
-		ownship.gs = lastPosition.distanceTo(ownship.position) * mToNm * 3600000 / deltaTime;
-		ownship.track = lastPosition.initialBearingTo(ownship.position);
-		if (isNaN(ownship.track)) ownship.track = 0;
-		ownship.magVar = geoMag(ownship.position.lat, ownship.position.lon).dec;
-		ownship.mapPosition = ol.proj.fromLonLat([ownship.position.lon, ownship.position.lat]);
+		workerOwnship.gs = lastPosition.distanceTo(workerOwnship.position) * mToNm * 3600000 / deltaTime;
+		workerOwnship.track = lastPosition.initialBearingTo(workerOwnship.position);
+		if (isNaN(workerOwnship.track)) workerOwnship.track = 0;
+		workerOwnship.magVar = workerGeoMag(workerOwnship.position.lat, workerOwnship.position.lon).dec;
+		workerOwnship.mapPosition = ol.proj.fromLonLat([workerOwnship.position.lon, workerOwnship.position.lat]);
 
-		const p1 = ownship.position.destinationPoint(ownship.gs / (mToNm * 60), ownship.track);
-		ownship.prediction = new ol.proj.fromLonLat([p1.lon, p1.lat]);
+		const p1 = workerOwnship.position.destinationPoint(workerOwnship.gs / (mToNm * 60), workerOwnship.track);
+		workerOwnship.prediction = new ol.proj.fromLonLat([p1.lon, p1.lat]);
 
-		speedSamples[speedSamples.length] = ownship.gs;
+		WorkerSpeedSamples[WorkerSpeedSamples.length] = workerOwnship.gs;
 
-		if (speedSamples.length > 30) speedSamples.shift();
+		if (WorkerSpeedSamples.length > 30) WorkerSpeedSamples.shift();
 
-		if (ownship.gs > 30 && airborneCount > 0) {
+		if (workerOwnship.gs > 30 && airborneCount > 0) {
 			airborneCount--;
 		}
 
-		if (airborneCount == 0 && !airborneMode) {
-			airborneMode = true;
+		if (airborneCount == 0 && !workerAirborneMode) {
+			workerAirborneMode = true;
 		}
 
-		if (airborneMode && data["navPoint"]) {
+		if (workerAirborneMode && data["navPoint"]) {
 			navPoint.lat = data["navPoint"]._lat;
 			navPoint.lon = data["navPoint"]._lon;
 
-			ownship.toGoDis = ownship.position.distanceTo(navPoint) * mToNm;
-			ownship.toGoDtk = normalizeAngle(ownship.position.initialBearingTo(navPoint) - ownship.magVar);
+			workerOwnship.toGoDis = workerOwnship.position.distanceTo(navPoint) * mToNm;
+			workerOwnship.toGoDtk = normalizeAngle(workerOwnship.position.initialBearingTo(navPoint) - workerOwnship.magVar);
 
-			averageSpeed = 0;
+			workerAverageSpeed = 0;
 
-			for (let i = 0; i < speedSamples.length; i++) {
-				averageSpeed += speedSamples[i];
+			for (let i = 0; i < WorkerSpeedSamples.length; i++) {
+				workerAverageSpeed += WorkerSpeedSamples[i];
 			}
 
-			averageSpeed = averageSpeed / speedSamples.length;
-			ownship.toGs = Math.max(10, averageSpeed * Math.cos(toRadians(ownship.track - ownship.magVar - ownship.toGoDtk)));
-			hours = ownship.toGoDis / ownship.toGs;
-			ownship.ete = [Math.floor(hours), (hours - Math.floor(hours)) * 60];
+			workerAverageSpeed = workerAverageSpeed / WorkerSpeedSamples.length;
+			workerOwnship.aveGs = workerAverageSpeed;
+			workerOwnship.toGs = Math.max(10, workerAverageSpeed * Math.cos(toRadians(workerOwnship.track - workerOwnship.magVar - workerOwnship.toGoDtk)));
+			hours = workerOwnship.toGoDis / workerOwnship.toGs;
+			workerOwnship.ete = [Math.floor(hours), (hours - Math.floor(hours)) * 60];
 
 			if (data["sectionFuelFlow"]) {
-				ownship.routeFuelReq = data["sectionFuelFlow"] * (ownship.ete[0] + (ownship.ete[1] / 60));
-				ownship.totalFuel -= data["sectionFuelFlow"] * deltaTime / 3600000;
+				workerOwnship.routeFuelReq = data["sectionFuelFlow"] * (workerOwnship.ete[0] + (workerOwnship.ete[1] / 60));
+				workerOwnship.totalFuel -= data["sectionFuelFlow"] * deltaTime / 3600000;
 			}
 		}
 
-		renderPars.radTrack = toRadians(ownship.track);
-		renderPars.radMagVar = toRadians(ownship.magVar);
-		renderPars.radDtk = (ownship.toGoDtk) ? renderPars.radMagVar + toRadians(ownship.toGoDtk) : null;
+		workerRenderPars.radTrack = toRadians(workerOwnship.track);
+		workerRenderPars.radMagVar = toRadians(workerOwnship.magVar);
+		workerRenderPars.radDtk = (workerOwnship.toGoDtk) ? workerRenderPars.radMagVar + toRadians(workerOwnship.toGoDtk) : null;
+		workerRenderPars.radWind = (data["sectionWindDir"]) ? toRadians(data["sectionWindDir"]) + workerRenderPars.radMagVar : null;
 	}
 
-	lastPosition.lat = ownship.position.lat;
-	lastPosition.lon = ownship.position.lon;
+	lastPosition.lat = workerOwnship.position.lat;
+	lastPosition.lon = workerOwnship.position.lon;
 	lastFixTime = fixTime;
 
 	if (firstPosition) {
 		firstPosition = false;
 	}
 	else {
-		postMessage({ "airborneMode": airborneMode, "ownship": ownship, "renderPars": renderPars, "deltaTime": deltaTime });
+		if(!data["simMode"]){
+			postMessage({ "airborneMode": workerAirborneMode, "ownship": workerOwnship, "renderPars": workerRenderPars, "deltaTime": deltaTime });
+		}else{
+			processOwnship({ "airborneMode": workerAirborneMode, "ownship": workerOwnship, "renderPars": workerRenderPars, "deltaTime": deltaTime });
+		}
 	}
 }

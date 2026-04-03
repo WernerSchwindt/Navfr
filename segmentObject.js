@@ -90,20 +90,20 @@ SectorObject.prototype.calculateWindCorrection = function () {
 	}
 }
 
-SectorObject.prototype.calculateWind = function (course, groundspeed) {
-	if (this.heading == null || groundspeed == null || this.ias == null || course == null) {
+SectorObject.prototype.calculateWind = function (track, groundspeed) {
+	if (this.heading == null || groundspeed == null || this.ias == null || track == null) {
 		return;
 	}
 
-	const courseRad = toRadians(course);
-	const driftAngle = toRadians(this.heading - course);
+	const courseRad = toRadians(track);
+	const driftAngle = toRadians(this.heading - track);
 
 	const headwind = (this.ias * Math.cos(driftAngle)) - groundspeed;
 	const crosswind = this.ias * Math.sin(driftAngle);
 
 	if (headwind == 0) {
 		this.windSpd = (crosswind < 0) ? -crosswind : crosswind;
-		this.windDir = normalizeAngle((crosswind < 0) ? course - 90 : course + 90);
+		this.windDir = normalizeAngle((crosswind < 0) ? track - 90 : track + 90);
 	}
 	else {
 		const windAngle = Math.atan(crosswind / headwind);
@@ -111,6 +111,6 @@ SectorObject.prototype.calculateWind = function (course, groundspeed) {
 
 		this.windSpd = (speed < 0) ? -speed : speed;
 
-		this.windDir = normalizeAngle(course + toDegrees(windAngle) + ((speed < 0) ? 180 : 0));
+		this.windDir = normalizeAngle(track + toDegrees(windAngle) + ((speed < 0) ? 180 : 0));
 	}
 }

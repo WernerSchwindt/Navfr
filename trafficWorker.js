@@ -1,22 +1,17 @@
 "use strict";
 
-importScripts('libs/geodesy-custom-2.3.0.js');
-importScripts('utilities.js');
-importScripts('defaults.js');
-
 let libsInit = false;
-const ownshipPistion = new geodesy.LatLon(0, 0);
+let ownshipPistion = null;
 
 onmessage = (e) => {
 	if (!libsInit) {
+		importScripts('libs/ol-custom-10.6.1.js');
+		importScripts('libs/geodesy-custom-2.3.0.js');
+		importScripts('utilities.js');
+		importScripts('defaults.js');
+		
 		libsInit = true;
-
-		if (e.data["simMode"]) {
-			importScripts('libs/ol-custom-6.15.1.js');
-		}
-		else {
-			importScripts('libs/ol-custom-10.6.1.js');
-		}
+		ownshipPistion = new geodesy.LatLon(0, 0);
 	}
 
 	parseADSBTraffic(e.data);
@@ -30,6 +25,11 @@ onmessage = (e) => {
 		data["qnh"] = qnh
 */
 async function parseADSBTraffic(data) {
+	if (!libsInit) {
+		libsInit = true;
+		ownshipPistion = new geodesy.LatLon(0, 0);
+	}
+
 	try {
 		const response = await fetch(data["api"] + '?filename=aircraft');
 
@@ -81,12 +81,20 @@ async function parseADSBTraffic(data) {
 					return track;
 				});
 
-				postMessage({ "state": 0, "traffic": result.aircraft });
+				if(!data["simMode"]){
+					postMessage({ "state": 0, "traffic": result.aircraft });
+				}else{
+					processTraffic({ "state": 0, "traffic": result.aircraft });
+				}
 			}
 		}
 	}
 	catch (err) {
-		postMessage({ "state": 1, "traffic": [] });
+		if(!data["simMode"]){
+			postMessage({ "state": 1, "traffic": [] });
+		}else{
+			processTraffic({ "state": 0, "traffic": result.aircraft });
+		}
 	}
 }
 

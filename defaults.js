@@ -89,6 +89,7 @@ const greenColour = '#3c9c6f';
 const amberColour = '#9c793c';
 const redColour = '#cc0000';
 const ownshipColour = '#13eb85';
+const windArrowColor = '#134feb';
 const warningColour = '#eb9b13';
 const darkGreenColour = '#00400b';
 const mainButtonSize = 1.5;

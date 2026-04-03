@@ -47,11 +47,12 @@ let groundTrafficSVG = null;
 let highTrafficSVG = null;
 let updateTrafficTableAllowed = false;
 let trafficBackground = null;
+let windArrowSVG = null;
+
+let trafficWorker = null; 
+let ownshipWorker = null;
 
 const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-
-const trafficWorker = new Worker("trafficWorker.js");
-const ownshipWorker = new Worker("ownshipWorker.js");
 
 function initialize() {
 	if (params.get("test")) {
@@ -75,6 +76,20 @@ function initialize() {
 		centerLon = localStorage.getItem("view_lon");
 	}
 
+	if(!simMode)
+	{
+		trafficWorker = new Worker("trafficWorker.js");
+		ownshipWorker = new Worker("ownshipWorker.js");
+
+		trafficWorker.onmessage = (msg) => {
+			processTraffic(msg.data);
+		};
+
+		ownshipWorker.onmessage = (msg) => {
+			processOwnship(msg.data);
+		};
+	}
+
 	document.documentElement.style.setProperty("--SCALE", globalScale);
 	jQuery('#zoom').text(getDecimalText(globalScale), false);
 	jQuery('#qnh').text(Math.round(qnh));
@@ -85,6 +100,7 @@ function initialize() {
 	initTimers();
 	initIcons();
 	initButtons();
+	disableDev();
 
 	geoMag = geoMagFactory(cof2Obj());
 
@@ -92,6 +108,7 @@ function initialize() {
 	ownship.mapPosition = null;
 	ownship.prediction = null;
 	ownship.gs = null;
+	ownship.aveGs = null;
 	ownship.track = null;
 	ownship.magVar = null;
 	ownship.toGoDis = null;
@@ -109,6 +126,11 @@ function initialize() {
 	ownship.holdFuel = null;
 	ownship.holdFuelFlow = 0;
 	ownship.holdDuration = 0;
+
+	renderPars.radTrack = null;
+	renderPars.radMagVar = null;
+	renderPars.radDtk = null;
+	renderPars.radWind = null;
 
 	airborneMode = false;
 	canRemoveWaypoint = false;
@@ -163,6 +185,7 @@ function initOverlaySVGs() {
 	trafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], redColour, '#000000', 1));
 	highTrafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], purpleColour, '#000000', 1));
 	groundTrafficSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['traffic'], 'grey', '#000000', 1));
+	windArrowSVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgShapeToSVG(shapes['wind_arrow'], windArrowColor, '#ffffff', 1));
 }
 
 function initTimers() {
@@ -171,7 +194,14 @@ function initTimers() {
 
 	timers.navClock = window.setInterval(updateNavData, 1000);
 	timers.adsbClock = window.setInterval(() => {
-		trafficWorker.postMessage({ "simMode": simMode, "api": apiData, "ownshipPos": ownship.position, "qnh": qnh });
+		let data = { "simMode": simMode, "api": apiData, "ownshipPos": ownship.position, "qnh": qnh };
+		if(!simMode){
+			trafficWorker.postMessage(data);
+		}
+		else{
+			parseADSBTraffic(data);
+		}
+		
 	}, 1000);
 }
 
@@ -390,9 +420,10 @@ function updateOwnshipLayer() {
 	ownshipIcon.set("scale", globalScale);
 	ownshipIcon.set("magVar", renderPars.radMagVar);
 	if(renderPars.radDtk) ownshipIcon.set("trackBug", renderPars.radDtk);
+	if(renderPars.radWind) ownshipIcon.set("windArrow", renderPars.radWind);
 	ownshipIcon.set("track", renderPars.radTrack);
 	ownshipIcon.set("airborne", airborneMode);
-	ownshipIcon.set("location", (ownship.toGoDtk) ? getCardinalDirection(ownship.toGoDtk) : "-");
+	if(ownship.toGoDtk) ownshipIcon.set("location", getCardinalDirection(ownship.toGoDtk));
 	ownshipIcon.set("textFont", 'bold ' + (labelSize * globalScale * 0.75) + 'em ' + labelFont);
 	ownshipIcon.set("textPadding", [1 * globalScale, 4 * globalScale, -1 * globalScale, 6 * globalScale]);
 
@@ -955,7 +986,7 @@ function calculateFlightPlan() {
 		if (i == 1 && airborneMode) {
 			table_heading = document.getElementById(route[i].id + '_hdg').value;
 			route[i].heading = (table_heading == "") ? null : Number(table_heading);
-			route[i].calculateWind(ownship.toGoDtk, ownship.toGs);
+			route[i].calculateWind(ownship.track - ownship.magVar, ownship.aveGs);
 		}
 		else {
 			table_wind_dir = document.getElementById(route[i].id + '_wind_dir').value;
@@ -1457,13 +1488,20 @@ function updateOwnshipWorker(position) {
 	}
 
 	let point = (route.length == 1) ? 0 : 1;
-	ownshipWorker.postMessage({ "simMode": simMode, "ownshipPos": position, "ownshipFuel": ownship.totalFuel, "navPoint": (route.length > 0) ? route[point].endPoint : null, "sectionFuelFlow": (route.length > 0) ? route[point].fuelFlow : null });
+	let data = { "simMode": simMode, "ownshipPos": position, "ownshipFuel": ownship.totalFuel, "navPoint": (route.length > 0) ? route[point].endPoint : null, "sectionFuelFlow": (route.length > 0) ? route[point].fuelFlow : null, "sectionWindDir": (route.length > 0 && route[point].windSpd > 0) ? route[point].windDir : null };
+	
+	if(!simMode)
+	{
+		ownshipWorker.postMessage(data);
+	}else{
+		updateOwnship(data);
+	}
 }
 
-trafficWorker.onmessage = (msg) => {
-	if (msg.data["state"] == 0) {
-		updateTrafficLayer(msg.data["traffic"]);
-		if (updateTrafficTableAllowed) updateADSBTrafficTable(msg.data["traffic"]);
+function processTraffic (data) {
+	if (data["state"] == 0) {
+		updateTrafficLayer(data["traffic"]);
+		if (updateTrafficTableAllowed) updateADSBTrafficTable(data["traffic"]);
 		if (faultCounter != 60) faultCounter = 60;
 	}
 	else {
@@ -1476,26 +1514,27 @@ trafficWorker.onmessage = (msg) => {
 	}
 };
 
-ownshipWorker.onmessage = (msg) => {
+function processOwnship(data){
+	ownship.position = [data["ownship"].position._lon, data["ownship"].position._lat];
+	ownship.gs = data["ownship"].gs;
+	ownship.aveGs = data["ownship"].aveGs;
+	ownship.track = data["ownship"].track;
+	ownship.magVar = data["ownship"].magVar;
+	ownship.mapPosition = data["ownship"].mapPosition;
+	ownship.ete = data["ownship"].ete;
+	ownship.routeFuelReq = data["ownship"].routeFuelReq;
+	ownship.totalFuel = data["ownship"].totalFuel;
+	ownship.toGoDis = data["ownship"].toGoDis;
+	ownship.toGoDtk = data["ownship"].toGoDtk;
+	ownship.toGs = data["ownship"].toGs;
+	ownship.prediction = data["ownship"].prediction;
 
-	ownship.position = [msg.data["ownship"].position._lon, msg.data["ownship"].position._lat];
-	ownship.gs = msg.data["ownship"].gs;
-	ownship.track = msg.data["ownship"].track;
-	ownship.magVar = msg.data["ownship"].magVar;
-	ownship.mapPosition = msg.data["ownship"].mapPosition;
-	ownship.ete = msg.data["ownship"].ete;
-	ownship.routeFuelReq = msg.data["ownship"].routeFuelReq;
-	ownship.totalFuel = msg.data["ownship"].totalFuel;
-	ownship.toGoDis = msg.data["ownship"].toGoDis;
-	ownship.toGoDtk = msg.data["ownship"].toGoDtk;
-	ownship.toGs = msg.data["ownship"].toGs;
-	ownship.prediction = msg.data["ownship"].prediction;
+	renderPars.radTrack = data["renderPars"].radTrack;
+	renderPars.radMagVar = data["renderPars"].radMagVar;
+	renderPars.radDtk = data["renderPars"].radDtk;
+	renderPars.radWind = data["renderPars"].radWind;
 
-	renderPars.radTrack = msg.data["renderPars"].radTrack;
-	renderPars.radMagVar = msg.data["renderPars"].radMagVar;
-	renderPars.radDtk = msg.data["renderPars"].radDtk;
-
-	if (msg.data["airborneMode"] && !airborneMode) {
+	if (data["airborneMode"] && !airborneMode) {
 		panMode = false;
 		northUp = false;
 		airborneMode = true;
@@ -1526,7 +1565,7 @@ ownshipWorker.onmessage = (msg) => {
 		}
 
 		if (!panMode) {
-			animateView(msg.data["deltaTime"]);
+			animateView(data["deltaTime"]);
 			localStorage.setItem("view_lat", ownship.position[1]);
 			localStorage.setItem("view_lon", ownship.position[0]);
 		}
@@ -1535,5 +1574,15 @@ ownshipWorker.onmessage = (msg) => {
 	updateOwnshipLayer();
 };
 /* End of Worker messages section */
+
+function disableDev()
+{
+	jQuery('#set_dme_1').css('background', 'grey');
+	jQuery('#clear_dme_1').css('background', 'grey');
+	jQuery('#set_dme_2').css('background', 'grey');
+	jQuery('#clear_dme_2').css('background', 'grey');
+	jQuery('#open_airport_info').css('background', 'grey');
+	jQuery('#direct_to').css('background', 'grey');
+}
 
 initialize();
